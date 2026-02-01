@@ -147,16 +147,12 @@ export class TaskFormComponent implements OnInit {
       deadline: new Date(val.deadline).toISOString(),
     };
 
+    this.router.navigate(['/tasks']);
+
     if (this.isEdit && this.taskId) {
-      this.taskService.update(this.taskId, payload).subscribe({
-        next: () => this.router.navigate(['/tasks', this.taskId]),
-        error: () => (this.saving = false),
-      });
+      this.taskService.update(this.taskId, payload).subscribe();
     } else {
-      this.taskService.create(payload).subscribe({
-        next: (task) => this.router.navigate(['/tasks', task.id]),
-        error: () => (this.saving = false),
-      });
+      this.taskService.create(payload).subscribe();
     }
   }
 

@@ -39,7 +39,7 @@ import { ClientService } from '../../../../core/services/client.service';
           </mat-form-field>
           <div class="actions">
             <button mat-button type="button" (click)="cancel()">Cancel</button>
-            <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">{{ isEdit ? 'Update' : 'Create' }}</button>
+            <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving">{{ isEdit ? 'Update' : 'Create' }}</button>
           </div>
         </form>
       </mat-card-content>
@@ -50,6 +50,7 @@ import { ClientService } from '../../../../core/services/client.service';
 export class ClientFormComponent implements OnInit {
   form!: FormGroup;
   isEdit = false;
+  saving = false;
   clientId: number | null = null;
 
   constructor(private fb: FormBuilder, private clientService: ClientService, private router: Router, private route: ActivatedRoute) {}
@@ -68,11 +69,15 @@ export class ClientFormComponent implements OnInit {
   }
 
   onSubmit(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid || this.saving) return;
+    this.saving = true;
+
+    this.router.navigate(['/clients']);
+
     if (this.isEdit && this.clientId) {
-      this.clientService.update(this.clientId, this.form.value).subscribe(() => this.router.navigate(['/clients', this.clientId]));
+      this.clientService.update(this.clientId, this.form.value).subscribe();
     } else {
-      this.clientService.create(this.form.value).subscribe((c) => this.router.navigate(['/clients', c.id]));
+      this.clientService.create(this.form.value).subscribe();
     }
   }
 
