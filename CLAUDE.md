@@ -30,4 +30,9 @@ tests/
 - 001-task-management: Added
 
 <!-- MANUAL ADDITIONS START -->
+
+## Issue Tracking
+
+Known bugs and issues are tracked in [ISSUES.md](ISSUES.md). When fixing an issue, remove its row from the table in the same commit as the fix.
+
 <!-- MANUAL ADDITIONS END -->
