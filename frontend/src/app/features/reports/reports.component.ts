@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnIni
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -31,10 +31,21 @@ import { SummaryService, SummaryListItem } from '../../core/services/summary.ser
     <h2>Reports</h2>
 
     <!-- AI Summary Section -->
-    <div class="ai-summary-section" *ngIf="dailySummary || weeklySummary">
-      <h3>AI Summaries</h3>
-      <div class="summary-cards">
-        <mat-card *ngIf="dailySummary" class="summary-card">
+    <div class="ai-summary-section">
+      <div class="section-header">
+        <h3>AI Summaries</h3>
+        <a mat-button color="primary" routerLink="/reports/summaries">
+          <mat-icon>history</mat-icon> View All Summaries
+        </a>
+      </div>
+
+      <div *ngIf="summaryLoading" style="text-align: center; padding: 24px;">
+        <mat-spinner diameter="32"></mat-spinner>
+      </div>
+
+      <div class="summary-cards" *ngIf="!summaryLoading && (dailySummary || weeklySummary)">
+        <mat-card *ngIf="dailySummary" class="summary-card clickable-card"
+                  [routerLink]="['/reports/summaries', dailySummary.id]">
           <mat-card-header>
             <mat-card-title>Daily Summary</mat-card-title>
             <mat-card-subtitle>
@@ -45,12 +56,13 @@ import { SummaryService, SummaryListItem } from '../../core/services/summary.ser
             </mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
-            <p class="summary-text">{{ dailySummary.summary_text }}</p>
+            <p class="summary-preview">{{ dailySummary.summary_text | slice:0:200 }}{{ dailySummary.summary_text.length > 200 ? '...' : '' }}</p>
             <small class="generated-at">Generated: {{ dailySummary.generated_at | date:'medium' }}</small>
           </mat-card-content>
         </mat-card>
 
-        <mat-card *ngIf="weeklySummary" class="summary-card">
+        <mat-card *ngIf="weeklySummary" class="summary-card clickable-card"
+                  [routerLink]="['/reports/summaries', weeklySummary.id]">
           <mat-card-header>
             <mat-card-title>Weekly Summary</mat-card-title>
             <mat-card-subtitle>
@@ -61,18 +73,15 @@ import { SummaryService, SummaryListItem } from '../../core/services/summary.ser
             </mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
-            <p class="summary-text">{{ weeklySummary.summary_text }}</p>
+            <p class="summary-preview">{{ weeklySummary.summary_text | slice:0:200 }}{{ weeklySummary.summary_text.length > 200 ? '...' : '' }}</p>
             <small class="generated-at">Generated: {{ weeklySummary.generated_at | date:'medium' }}</small>
           </mat-card-content>
         </mat-card>
       </div>
-      <a mat-button color="primary" routerLink="/reports/summaries">
-        <mat-icon>history</mat-icon> View Summary History
-      </a>
-    </div>
 
-    <div *ngIf="summaryLoading" style="text-align: center; padding: 24px;">
-      <mat-spinner diameter="32"></mat-spinner>
+      <p *ngIf="!summaryLoading && !dailySummary && !weeklySummary" class="no-summaries">
+        No scheduled summaries yet. Generate one on demand below, or wait for the next automatic daily/weekly run.
+      </p>
     </div>
 
     <!-- On-demand AI Summary Generation -->
@@ -143,10 +152,13 @@ import { SummaryService, SummaryListItem } from '../../core/services/summary.ser
     .stat { font-size: 32px; font-weight: bold; text-align: center; }
     .report-content { margin-top: 24px; }
     .ai-summary-section { margin-bottom: 32px; }
-    .ai-summary-section h3 { margin-bottom: 16px; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .section-header h3 { margin: 0; }
     .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; margin-bottom: 12px; }
-    .summary-card { }
-    .summary-text { white-space: pre-line; line-height: 1.6; }
+    .clickable-card { cursor: pointer; transition: box-shadow 0.2s; }
+    .clickable-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+    .summary-preview { white-space: pre-line; line-height: 1.6; }
+    .no-summaries { color: #666; font-style: italic; }
     .generated-at { color: #666; }
     .method-badge {
       display: inline-block;
@@ -180,6 +192,7 @@ export class ReportsComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private summaryService: SummaryService,
     private snackBar: MatSnackBar,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -213,7 +226,7 @@ export class ReportsComponent implements OnInit, OnDestroy {
       next: (result) => {
         this.generating = false;
         this.snackBar.open('Summary generation started', 'View', { duration: 5000 }).onAction().subscribe(() => {
-          window.location.href = `/reports/summaries/${result.id}`;
+          this.router.navigate(['/reports/summaries', result.id]);
         });
         this.cdr.markForCheck();
       },
