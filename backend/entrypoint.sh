@@ -24,12 +24,12 @@ def ensure_user(email, password, first_name, last_name, role, is_staff=False, is
         user.set_password(password)
         user.save()
         print(f'User created: {email} ({role})')
-    elif not user.is_active:
-        user.is_active = True
-        user.save(update_fields=['is_active'])
-        print(f'User activated: {email} ({role})')
     else:
-        print(f'User already exists: {email} ({role})')
+        user.set_password(password)
+        if not user.is_active:
+            user.is_active = True
+        user.save()
+        print(f'User updated: {email} ({role})')
 
 # Superuser
 email = os.environ.get('DJANGO_SUPERUSER_EMAIL')
