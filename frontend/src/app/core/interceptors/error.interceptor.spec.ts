@@ -48,6 +48,36 @@ describe('errorInterceptor', () => {
     expect(snackBar.open).toHaveBeenCalledWith('Invalid credentials', 'Close', jasmine.objectContaining({ duration: 5000 }));
   });
 
+  it('should extract field validation errors from errors object', () => {
+    httpClient.get('/api/test/').subscribe({ error: () => {} });
+
+    httpMock.expectOne('/api/test/').flush(
+      { errors: { password: ['Password is too common.', 'Password is entirely numeric.'] } },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    expect(snackBar.open).toHaveBeenCalledWith(
+      'Password is too common. Password is entirely numeric.',
+      'Close',
+      jasmine.objectContaining({ duration: 5000 }),
+    );
+  });
+
+  it('should handle string validation errors in errors object', () => {
+    httpClient.get('/api/test/').subscribe({ error: () => {} });
+
+    httpMock.expectOne('/api/test/').flush(
+      { errors: { client_id: 'Required for client role.' } },
+      { status: 400, statusText: 'Bad Request' },
+    );
+
+    expect(snackBar.open).toHaveBeenCalledWith(
+      'Required for client role.',
+      'Close',
+      jasmine.objectContaining({ duration: 5000 }),
+    );
+  });
+
   it('should show "Unable to connect" for status 0', () => {
     httpClient.get('/api/test/').subscribe({ error: () => {} });
 
