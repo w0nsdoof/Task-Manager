@@ -58,6 +58,8 @@ services:
       - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-2000}
       - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.3}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.2}
     ports:
       - "8000:8000"
     volumes:
@@ -107,6 +109,8 @@ services:
       - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-2000}
       - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.3}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.2}
     volumes:
       - ./backend:/app
     depends_on:
@@ -134,6 +138,8 @@ services:
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_API_BASE=${LLM_API_BASE:-}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.2}
     volumes:
       - ./backend:/app
     depends_on:
