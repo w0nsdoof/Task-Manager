@@ -59,15 +59,49 @@ ssh "$REMOTE_HOST" bash -s -- "$COMPOSE_FILE" <<'DEPLOY'
   docker compose -f "$COMPOSE_FILE" up -d
 
   echo "--- Waiting for backend to become healthy..."
-  timeout 90 bash -c '
-    until docker inspect taskmanager-backend --format="{{.State.Health.Status}}" 2>/dev/null | grep -q healthy; do
-      sleep 3
-    done
-  ' && echo "--- Backend is healthy" \
-    || echo "--- WARNING: Backend did not become healthy in 90s"
+  SECONDS_WAITED=0
+  while [ "$SECONDS_WAITED" -lt 90 ]; do
+    HEALTH=$(docker inspect taskmanager-backend --format="{{.State.Health.Status}}" 2>/dev/null || echo "missing")
+    STATE=$(docker inspect taskmanager-backend --format="{{.State.Status}}" 2>/dev/null || echo "missing")
+
+    if [ "$HEALTH" = "healthy" ]; then
+      break
+    fi
+
+    if [ "$STATE" = "exited" ] || [ "$STATE" = "missing" ]; then
+      echo "--- FATAL: Backend container is $STATE"
+      docker compose -f "$COMPOSE_FILE" logs backend --tail 30
+      exit 1
+    fi
+
+    sleep 3
+    SECONDS_WAITED=$((SECONDS_WAITED + 3))
+  done
+
+  if [ "$HEALTH" != "healthy" ]; then
+    echo "--- FATAL: Backend did not become healthy in 90s (status: $HEALTH)"
+    docker compose -f "$COMPOSE_FILE" logs backend --tail 30
+    exit 1
+  fi
+  echo "--- Backend is healthy"
 
   echo "--- Container status:"
   docker compose -f "$COMPOSE_FILE" ps
 DEPLOY
 
-echo "==> Deploy complete!"
+# Step 4: Post-deploy health verification
+echo "==> Verifying deployment..."
+HEALTH_URL="http://${DEPLOY_SSH_HOST:-$REMOTE_HOST}:8000/api/health/"
+if [ "${DEPLOY_SSH_HOST:-}" ]; then
+  # Running from CI — check health via SSH since we can't reach the server directly
+  HEALTH_OK=$(ssh "$REMOTE_HOST" "curl -sf -o /dev/null -w '%{http_code}' http://localhost:8000/api/health/ 2>/dev/null || echo 000")
+else
+  HEALTH_OK=$(curl -sf -o /dev/null -w '%{http_code}' "http://$REMOTE_HOST:8000/api/health/" 2>/dev/null || echo 000)
+fi
+
+if [ "$HEALTH_OK" != "200" ]; then
+  echo "==> FATAL: Health check failed (HTTP $HEALTH_OK)"
+  exit 1
+fi
+
+echo "==> Deploy complete! Health check passed."
