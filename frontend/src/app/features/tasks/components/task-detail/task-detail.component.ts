@@ -9,9 +9,12 @@ import { MatListModule } from '@angular/material/list';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTabsModule, MatTabChangeEvent } from '@angular/material/tabs';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Subject, takeUntil } from 'rxjs';
 import { TaskService, TaskDetail } from '../../../../core/services/task.service';
 import { AuthService } from '../../../../core/services/auth.service';
+import { STATUS_LABELS, VALID_TRANSITIONS } from '../../../../core/constants/task-status';
 
 @Component({
   selector: 'app-task-detail',
@@ -19,7 +22,7 @@ import { AuthService } from '../../../../core/services/auth.service';
   imports: [
     CommonModule, RouterModule, MatCardModule, MatChipsModule,
     MatButtonModule, MatIconModule, MatListModule, MatDividerModule,
-    MatTabsModule, MatProgressBarModule,
+    MatTabsModule, MatProgressBarModule, MatMenuModule, MatSnackBarModule,
   ],
   template: `
     <div *ngIf="task">
@@ -33,7 +36,17 @@ import { AuthService } from '../../../../core/services/auth.service';
       </div>
 
       <div class="meta">
-        <mat-chip [class]="'status-' + task.status">{{ task.status }}</mat-chip>
+        <mat-chip [class]="'status-' + task.status"
+                  [matMenuTriggerFor]="getNextStatuses(task.status).length ? statusMenu : null"
+                  [style.cursor]="getNextStatuses(task.status).length ? 'pointer' : 'default'">
+          {{ statusLabel(task.status) }}
+          <mat-icon *ngIf="getNextStatuses(task.status).length" iconPositionEnd style="font-size:18px;width:18px;height:18px">arrow_drop_down</mat-icon>
+        </mat-chip>
+        <mat-menu #statusMenu="matMenu">
+          <button mat-menu-item *ngFor="let s of getNextStatuses(task.status)" (click)="onChangeStatus(s)">
+            {{ statusLabel(s) }}
+          </button>
+        </mat-menu>
         <mat-chip [class]="'priority-' + task.priority">{{ task.priority }}</mat-chip>
         <span>Deadline: {{ task.deadline | date:'mediumDate' }}</span>
         <span *ngIf="task.client">Client: {{ task.client.name }}</span>
@@ -147,6 +160,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private taskService: TaskService,
     private authService: AuthService,
+    private snackBar: MatSnackBar,
     private cdr: ChangeDetectorRef,
   ) {}
 
@@ -212,6 +226,32 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  statusLabel(status: string): string {
+    return STATUS_LABELS[status] || status;
+  }
+
+  getNextStatuses(currentStatus: string): string[] {
+    const transitions = VALID_TRANSITIONS[currentStatus] || [];
+    if (!this.isManager) {
+      return transitions.filter((s: string) => !(currentStatus === 'done' && s === 'archived'));
+    }
+    return transitions;
+  }
+
+  onChangeStatus(newStatus: string): void {
+    if (!this.task) return;
+    this.taskService.changeStatus(this.task.id, newStatus).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.task!.status = newStatus;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        const msg = err.error?.detail || 'Failed to change status';
+        this.snackBar.open(msg, 'Close', { duration: 3000 });
+      },
+    });
   }
 
   getHistoryIcon(action: string): string {
