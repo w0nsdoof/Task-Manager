@@ -17,6 +17,16 @@ export const authGuard: CanActivateFn = () => {
   );
 };
 
+export const managerOrEngineerGuard: CanActivateFn = () => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+
+  if (authService.isLoggedIn() && (authService.hasRole('manager') || authService.hasRole('engineer'))) {
+    return true;
+  }
+  return router.createUrlTree(['/']);
+};
+
 export const managerGuard: CanActivateFn = () => {
   const authService = inject(AuthService);
   const router = inject(Router);

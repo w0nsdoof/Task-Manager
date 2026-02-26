@@ -7,6 +7,7 @@ from apps.accounts.permissions import (
     IsClient,
     IsEngineer,
     IsManager,
+    IsManagerOrEngineer,
     IsManagerOrReadOnly,
 )
 from tests.factories import EngineerFactory, TaskFactory
@@ -56,6 +57,18 @@ class TestIsManagerOrReadOnly:
 
     def test_denies_engineer_write(self, engineer):
         assert IsManagerOrReadOnly().has_permission(_make_request(engineer, "POST"), None) is False
+
+
+@pytest.mark.django_db
+class TestIsManagerOrEngineer:
+    def test_allows_manager(self, manager):
+        assert IsManagerOrEngineer().has_permission(_make_request(manager), None) is True
+
+    def test_allows_engineer(self, engineer):
+        assert IsManagerOrEngineer().has_permission(_make_request(engineer), None) is True
+
+    def test_denies_client(self, client_user):
+        assert IsManagerOrEngineer().has_permission(_make_request(client_user), None) is False
 
 
 @pytest.mark.django_db

@@ -36,7 +36,7 @@ describe('TaskDetailComponent', () => {
 
   beforeEach(async () => {
     taskServiceSpy = jasmine.createSpyObj('TaskService', ['get', 'getAttachments', 'getHistory', 'uploadAttachment', 'downloadAttachment', 'deleteAttachment']);
-    authServiceSpy = jasmine.createSpyObj('AuthService', ['hasRole']);
+    authServiceSpy = jasmine.createSpyObj('AuthService', ['hasRole', 'hasAnyRole', 'getCurrentUser']);
 
     taskServiceSpy.get.and.returnValue(of(mockTask));
     taskServiceSpy.getAttachments.and.returnValue(of(mockAttachmentsPage));
@@ -45,6 +45,8 @@ describe('TaskDetailComponent', () => {
     taskServiceSpy.downloadAttachment.and.returnValue(of(new Blob(['test'])));
     taskServiceSpy.deleteAttachment.and.returnValue(of(undefined));
     authServiceSpy.hasRole.and.returnValue(true);
+    authServiceSpy.hasAnyRole.and.returnValue(true);
+    authServiceSpy.getCurrentUser.and.returnValue({ id: 1, email: 'mgr@test.com', first_name: 'A', last_name: 'B', role: 'manager', organization_id: 1 });
 
     await TestBed.configureTestingModule({
       imports: [TaskDetailComponent],

@@ -8,6 +8,7 @@ import { TaskFormComponent } from './task-form.component';
 import { TaskService } from '../../../../core/services/task.service';
 import { ClientService } from '../../../../core/services/client.service';
 import { TagService } from '../../../../core/services/tag.service';
+import { AuthService } from '../../../../core/services/auth.service';
 
 describe('TaskFormComponent', () => {
   let component: TaskFormComponent;
@@ -15,6 +16,7 @@ describe('TaskFormComponent', () => {
   let taskService: jasmine.SpyObj<TaskService>;
   let clientService: jasmine.SpyObj<ClientService>;
   let tagService: jasmine.SpyObj<TagService>;
+  let authService: jasmine.SpyObj<AuthService>;
   let router: jasmine.SpyObj<Router>;
   let httpTesting: HttpTestingController;
 
@@ -32,6 +34,7 @@ describe('TaskFormComponent', () => {
         { provide: TaskService, useValue: taskService },
         { provide: ClientService, useValue: clientService },
         { provide: TagService, useValue: tagService },
+        { provide: AuthService, useValue: authService },
         { provide: Router, useValue: router },
         { provide: ActivatedRoute, useValue: { snapshot: { params: routeParams } } },
       ],
@@ -51,8 +54,10 @@ describe('TaskFormComponent', () => {
     taskService = jasmine.createSpyObj('TaskService', ['get', 'create', 'update', 'assign']);
     clientService = jasmine.createSpyObj('ClientService', ['list']);
     tagService = jasmine.createSpyObj('TagService', ['list']);
+    authService = jasmine.createSpyObj('AuthService', ['hasRole']);
     router = jasmine.createSpyObj('Router', ['navigate']);
 
+    authService.hasRole.and.returnValue(true);
     clientService.list.and.returnValue(of(mockClients as any));
     tagService.list.and.returnValue(of(mockTags as any));
   });

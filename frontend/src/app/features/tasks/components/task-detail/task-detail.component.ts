@@ -29,7 +29,7 @@ import { STATUS_LABELS, VALID_TRANSITIONS } from '../../../../core/constants/tas
       <div class="header">
         <h2>{{ task.title }}</h2>
         <div class="actions">
-          <a mat-button [routerLink]="['/tasks', task.id, 'edit']" *ngIf="isManager">
+          <a mat-button [routerLink]="['/tasks', task.id, 'edit']" *ngIf="canEdit">
             <mat-icon>edit</mat-icon> Edit
           </a>
         </div>
@@ -107,7 +107,7 @@ import { STATUS_LABELS, VALID_TRANSITIONS } from '../../../../core/constants/tas
             </ng-template>
           </div>
         </mat-tab>
-        <mat-tab label="History" *ngIf="isManager">
+        <mat-tab label="History" *ngIf="canViewHistory">
           <div class="tab-content">
             <mat-progress-bar *ngIf="historyLoading" mode="indeterminate"></mat-progress-bar>
             <mat-list *ngIf="history.length; else noHistory">
@@ -145,6 +145,8 @@ import { STATUS_LABELS, VALID_TRANSITIONS } from '../../../../core/constants/tas
 export class TaskDetailComponent implements OnInit, OnDestroy {
   task: TaskDetail | null = null;
   isManager = false;
+  canEdit = false;
+  canViewHistory = false;
   attachments: any[] = [];
   history: any[] = [];
   historyLoaded = false;
@@ -166,9 +168,15 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.isManager = this.authService.hasRole('manager');
+    this.canViewHistory = this.authService.hasAnyRole('manager', 'engineer');
     this.taskId = +this.route.snapshot.params['id'];
     this.taskService.get(this.taskId).pipe(takeUntil(this.destroy$)).subscribe((task) => {
       this.task = task;
+      const currentUserId = this.authService.getCurrentUser()?.id;
+      this.canEdit = this.isManager || (
+        this.authService.hasRole('engineer') &&
+        task.assignees.some(a => a.id == currentUserId)
+      );
       this.cdr.markForCheck();
     });
     this.loadAttachments();

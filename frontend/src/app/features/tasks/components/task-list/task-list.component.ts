@@ -26,7 +26,7 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
   template: `
     <div class="task-list-header">
       <h2>Tasks</h2>
-      <a mat-raised-button color="primary" routerLink="new" *ngIf="isManager">
+      <a mat-raised-button color="primary" routerLink="new" *ngIf="canCreate">
         <mat-icon>add</mat-icon> New Task
       </a>
     </div>
@@ -125,6 +125,7 @@ export class TaskListComponent implements OnInit, OnDestroy {
   currentPage = 1;
   pageSize = 20;
   isManager = false;
+  canCreate = false;
   displayedColumns = ['title', 'status', 'priority', 'assignees', 'client', 'tags', 'deadline'];
   private searchTerm = '';
   private activeFilters: FilterState = {};
@@ -139,6 +140,7 @@ export class TaskListComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.isManager = this.authService.hasRole('manager');
+    this.canCreate = this.authService.hasAnyRole('manager', 'engineer');
     this.loadTasks();
   }
 

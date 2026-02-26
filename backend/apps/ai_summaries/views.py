@@ -5,7 +5,7 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsManager
+from apps.accounts.permissions import IsManager, IsManagerOrEngineer
 
 from .models import ReportSummary
 from .serializers import (
@@ -19,7 +19,7 @@ from .tasks import generate_summary
 
 class SummaryLatestView(APIView):
     """GET /api/summaries/latest/ — latest completed daily and weekly summaries."""
-    permission_classes = [IsManager]
+    permission_classes = [IsManagerOrEngineer]
 
     @extend_schema(
         summary="Get latest summaries",
@@ -50,7 +50,7 @@ class SummaryLatestView(APIView):
 class SummaryListView(ListAPIView):
     """GET /api/summaries/ — paginated list, latest version per period group only."""
     serializer_class = SummaryListSerializer
-    permission_classes = [IsManager]
+    permission_classes = [IsManagerOrEngineer]
 
     @extend_schema(
         summary="List report summaries",
@@ -119,7 +119,7 @@ class SummaryListView(ListAPIView):
 class SummaryDetailView(RetrieveAPIView):
     """GET /api/summaries/{id}/ — full detail with version count."""
     serializer_class = SummaryDetailSerializer
-    permission_classes = [IsManager]
+    permission_classes = [IsManagerOrEngineer]
 
     @extend_schema(
         summary="Get summary detail",
@@ -148,7 +148,7 @@ class SummaryDetailView(RetrieveAPIView):
 
 class SummaryVersionsView(APIView):
     """GET /api/summaries/{id}/versions/ — all versions for same period group."""
-    permission_classes = [IsManager]
+    permission_classes = [IsManagerOrEngineer]
 
     @extend_schema(
         summary="List summary versions",

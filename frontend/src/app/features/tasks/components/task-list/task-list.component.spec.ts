@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { TaskListComponent } from './task-list.component';
@@ -27,7 +29,7 @@ describe('TaskListComponent', () => {
 
   beforeEach(async () => {
     taskService = jasmine.createSpyObj('TaskService', ['list', 'changeStatus']);
-    authService = jasmine.createSpyObj('AuthService', ['hasRole']);
+    authService = jasmine.createSpyObj('AuthService', ['hasRole', 'hasAnyRole']);
     clientService = jasmine.createSpyObj('ClientService', ['list']);
     taskService.list.and.returnValue(of(mockResponse));
     clientService.list.and.returnValue(of({ count: 0, next: null, previous: null, results: [] }));
@@ -36,6 +38,8 @@ describe('TaskListComponent', () => {
       imports: [TaskListComponent],
       providers: [
         provideNoopAnimations(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         provideRouter([]),
         { provide: TaskService, useValue: taskService },
         { provide: AuthService, useValue: authService },
@@ -46,6 +50,7 @@ describe('TaskListComponent', () => {
 
   function createComponent(isManager = false) {
     authService.hasRole.and.returnValue(isManager);
+    authService.hasAnyRole.and.returnValue(isManager);
     fixture = TestBed.createComponent(TaskListComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
@@ -92,7 +97,7 @@ describe('TaskListComponent', () => {
     it('should have correct columns', () => {
       createComponent();
       expect(component.displayedColumns).toEqual([
-        'title', 'status', 'priority', 'assignees', 'client', 'deadline',
+        'title', 'status', 'priority', 'assignees', 'client', 'tags', 'deadline',
       ]);
     });
   });
