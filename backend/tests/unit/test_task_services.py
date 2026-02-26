@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from django.utils import timezone
 
 from apps.audit.models import AuditLogEntry
 from apps.notifications.models import Notification
@@ -12,6 +13,7 @@ from apps.tasks.services import (
     update_task_with_version,
     validate_transition,
 )
+from apps.tasks.tasks import auto_archive_done_tasks
 from tests.factories import EngineerFactory, TaskFactory
 
 
@@ -138,3 +140,39 @@ class TestUpdateTaskWithVersion:
         )
         assert ok is True
         assert updated.title == "New"
+
+
+@pytest.mark.django_db
+class TestAutoArchiveDoneTasks:
+    def test_archives_done_tasks_with_expired_deadline(self, manager):
+        task = TaskFactory(
+            created_by=manager,
+            status=Task.Status.DONE,
+            deadline=timezone.now() - timezone.timedelta(days=1),
+        )
+        count = auto_archive_done_tasks()
+        assert count == 1
+        task.refresh_from_db()
+        assert task.status == Task.Status.ARCHIVED
+
+    def test_does_not_archive_done_tasks_with_future_deadline(self, manager):
+        task = TaskFactory(
+            created_by=manager,
+            status=Task.Status.DONE,
+            deadline=timezone.now() + timezone.timedelta(days=1),
+        )
+        count = auto_archive_done_tasks()
+        assert count == 0
+        task.refresh_from_db()
+        assert task.status == Task.Status.DONE
+
+    def test_does_not_archive_non_done_tasks(self, manager):
+        task = TaskFactory(
+            created_by=manager,
+            status=Task.Status.IN_PROGRESS,
+            deadline=timezone.now() - timezone.timedelta(days=1),
+        )
+        count = auto_archive_done_tasks()
+        assert count == 0
+        task.refresh_from_db()
+        assert task.status == Task.Status.IN_PROGRESS

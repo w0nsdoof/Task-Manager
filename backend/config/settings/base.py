@@ -191,6 +191,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.ai_summaries.tasks.generate_weekly_summary",
         "schedule": crontab(minute=0, hour=6, day_of_week=1),
     },
+    "auto-archive-done-tasks": {
+        "task": "apps.tasks.tasks.auto_archive_done_tasks",
+        "schedule": crontab(minute=0, hour="*/1"),
+    },
 }
 
 # LLM (AI Summaries)

@@ -96,7 +96,13 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
 
       <ng-container matColumnDef="deadline">
         <th mat-header-cell *matHeaderCellDef>Deadline</th>
-        <td mat-cell *matCellDef="let task">{{ task.deadline | date:'mediumDate' }}</td>
+        <td mat-cell *matCellDef="let task"
+            [class.deadline-overdue]="isOverdue(task)">
+          <ng-container *ngIf="isOverdue(task); else normalDeadline">
+            {{ getOverdueDays(task) }} ({{ task.deadline | date:'mediumDate' }})
+          </ng-container>
+          <ng-template #normalDeadline>{{ task.deadline | date:'mediumDate' }}</ng-template>
+        </td>
       </ng-container>
 
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
@@ -116,6 +122,7 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
     table { margin-bottom: 16px; }
     a { text-decoration: none; color: #1976d2; }
     .tag-chip { font-size: 11px; min-height: 24px; padding: 2px 8px; }
+    .deadline-overdue { color: #d32f2f; font-weight: 500; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -195,6 +202,21 @@ export class TaskListComponent implements OnInit, OnDestroy {
     this.activeFilters = filters;
     this.currentPage = 1;
     this.loadTasks();
+  }
+
+  isOverdue(task: TaskListItem): boolean {
+    if (task.status === 'done' || task.status === 'archived' || !task.deadline) {
+      return false;
+    }
+    return new Date(task.deadline) < new Date();
+  }
+
+  getOverdueDays(task: TaskListItem): string {
+    const deadline = new Date(task.deadline);
+    const now = new Date();
+    const diffMs = deadline.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    return `${diffDays}d`;
   }
 
   isLightColor(hex: string): boolean {
