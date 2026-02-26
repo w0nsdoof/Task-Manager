@@ -173,6 +173,20 @@ describe('AuthService', () => {
     });
   });
 
+  describe('hasAnyRole', () => {
+    it('should return true when user role matches one of the provided roles', () => {
+      service.login('test@example.com', 'pass').subscribe();
+      httpMock.expectOne('/api/auth/token/').flush(fakeTokenResponse);
+
+      expect(service.hasAnyRole('manager', 'engineer')).toBeTrue();
+      expect(service.hasAnyRole('engineer', 'client')).toBeFalse();
+    });
+
+    it('should return false when no user', () => {
+      expect(service.hasAnyRole('manager', 'engineer')).toBeFalse();
+    });
+  });
+
   describe('getCurrentUser', () => {
     it('should return null initially', () => {
       expect(service.getCurrentUser()).toBeNull();

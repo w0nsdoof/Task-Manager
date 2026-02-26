@@ -90,15 +90,34 @@ class TestTaskCreate:
             recipient=eng, event_type="task_assigned"
         ).exists()
 
-    def test_engineer_cannot_create_task(self, engineer_client):
+    def test_engineer_creates_task(self, engineer_client):
+        tag = TagFactory()
         data = {
-            "title": "Nope",
+            "title": "Engineer Task",
             "description": "Desc",
             "priority": "low",
             "deadline": (timezone.now() + timezone.timedelta(days=3)).isoformat(),
+            "tag_ids": [tag.id],
         }
         resp = engineer_client.post(TASKS_URL, data, format="json")
-        assert resp.status_code == 403
+        assert resp.status_code == 201
+        task = Task.objects.get(title="Engineer Task")
+        assert tag in task.tags.all()
+
+    def test_engineer_creates_task_without_client_and_assignees(self, engineer_client):
+        data = {
+            "title": "Simple Engineer Task",
+            "description": "Desc",
+            "priority": "medium",
+            "deadline": (timezone.now() + timezone.timedelta(days=3)).isoformat(),
+            "client_id": 999,
+            "assignee_ids": [1],
+        }
+        resp = engineer_client.post(TASKS_URL, data, format="json")
+        assert resp.status_code == 201
+        task = Task.objects.get(title="Simple Engineer Task")
+        assert task.client is None
+        assert task.assignees.count() == 0
 
     def test_validates_assignees_are_engineers(self, manager_client, manager):
         data = {
@@ -131,7 +150,16 @@ class TestTaskUpdate:
         task.refresh_from_db()
         assert task.title == "Updated"
 
-    def test_engineer_cannot_update_task(self, engineer_client, task):
+    def test_engineer_updates_assigned_task(self, engineer_client, engineer, task):
+        task.assignees.add(engineer)
+        resp = engineer_client.patch(
+            task_url(task.id), {"title": "Updated by engineer"}, format="json"
+        )
+        assert resp.status_code == 200
+        task.refresh_from_db()
+        assert task.title == "Updated by engineer"
+
+    def test_engineer_cannot_update_unassigned_task(self, engineer_client, task):
         resp = engineer_client.patch(
             task_url(task.id), {"title": "Nope"}, format="json"
         )
@@ -147,8 +175,15 @@ class TestTaskStatusChange:
         assert resp.status_code == 200
         assert resp.data["status"] == "in_progress"
 
-    def test_engineer_cannot_change_status(self, engineer_client, task):
-        # IsManagerOrReadOnly blocks all engineer POST requests at the permission level
+    def test_engineer_changes_status_assigned_task(self, engineer_client, engineer, task):
+        task.assignees.add(engineer)
+        resp = engineer_client.post(
+            f"{task_url(task.id)}status/", {"status": "in_progress"}, format="json"
+        )
+        assert resp.status_code == 200
+        assert resp.data["status"] == "in_progress"
+
+    def test_engineer_cannot_change_status_unassigned_task(self, engineer_client, task):
         resp = engineer_client.post(
             f"{task_url(task.id)}status/", {"status": "in_progress"}, format="json"
         )
@@ -224,6 +259,15 @@ class TestTaskHistory:
         assert resp.status_code == 200
         assert resp.data["count"] >= 1
 
-    def test_engineer_cannot_see_history(self, engineer_client, task):
+    def test_engineer_sees_history(self, engineer_client, engineer, task):
+        AuditLogEntry.objects.create(
+            task=task,
+            actor=engineer,
+            action=AuditLogEntry.Action.FIELD_UPDATE,
+            field_name="title",
+            old_value="Old",
+            new_value="New",
+        )
         resp = engineer_client.get(f"{task_url(task.id)}history/")
-        assert resp.status_code == 403
+        assert resp.status_code == 200
+        assert resp.data["count"] >= 1

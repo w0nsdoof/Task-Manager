@@ -66,11 +66,11 @@ describe('LayoutComponent', () => {
       expect(labels).not.toContain('My Tickets');
     });
 
-    it('should show only Tasks, Kanban for engineer', () => {
+    it('should show Tasks, Kanban, Reports for engineer', () => {
       setupWithRole('engineer');
 
       const labels = component.filteredNavItems.map((i) => i.label);
-      expect(labels).toEqual(['Tasks', 'Kanban']);
+      expect(labels).toEqual(['Tasks', 'Kanban', 'Reports']);
     });
 
     it('should show only My Tickets for client', () => {

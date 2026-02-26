@@ -21,9 +21,10 @@ class TestReportSummary:
         assert len(resp.data["by_client"]) == 1
         assert len(resp.data["by_engineer"]) == 1
 
-    def test_engineer_cannot_access_reports(self, engineer_client):
+    def test_engineer_can_access_reports(self, engineer_client, manager):
+        TaskFactory(created_by=manager, status="created")
         resp = engineer_client.get(REPORT_URL)
-        assert resp.status_code == 403
+        assert resp.status_code == 200
 
     def test_filter_by_client(self, manager_client, manager):
         c1 = ClientFactory()

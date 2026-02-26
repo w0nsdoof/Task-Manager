@@ -17,6 +17,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { environment } from '../../../environments/environment';
 import { SummaryService, SummaryListItem } from '../../core/services/summary.service';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-reports',
@@ -85,7 +86,7 @@ import { SummaryService, SummaryListItem } from '../../core/services/summary.ser
     </div>
 
     <!-- On-demand AI Summary Generation -->
-    <mat-card class="on-demand-card">
+    <mat-card *ngIf="isManager" class="on-demand-card">
       <mat-card-header>
         <mat-card-title>Generate AI Summary</mat-card-title>
       </mat-card-header>
@@ -130,8 +131,8 @@ import { SummaryService, SummaryListItem } from '../../core/services/summary.ser
             <mat-datepicker #toPicker></mat-datepicker>
           </mat-form-field>
           <button mat-raised-button color="primary" (click)="loadReport()">Generate</button>
-          <button mat-button (click)="exportPDF()"><mat-icon>picture_as_pdf</mat-icon> PDF</button>
-          <button mat-button (click)="exportExcel()"><mat-icon>table_chart</mat-icon> Excel</button>
+          <button mat-button *ngIf="isManager" (click)="exportPDF()"><mat-icon>picture_as_pdf</mat-icon> PDF</button>
+          <button mat-button *ngIf="isManager" (click)="exportExcel()"><mat-icon>table_chart</mat-icon> Excel</button>
         </div>
       </mat-card-content>
     </mat-card>
@@ -176,6 +177,7 @@ import { SummaryService, SummaryListItem } from '../../core/services/summary.ser
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReportsComponent implements OnInit, OnDestroy {
+  isManager = false;
   dateFrom: Date | null = null;
   dateTo: Date | null = null;
   reportData: any = null;
@@ -191,11 +193,13 @@ export class ReportsComponent implements OnInit, OnDestroy {
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
     private summaryService: SummaryService,
+    private authService: AuthService,
     private snackBar: MatSnackBar,
     private router: Router,
   ) {}
 
   ngOnInit(): void {
+    this.isManager = this.authService.hasRole('manager');
     this.loadLatestSummaries();
   }
 

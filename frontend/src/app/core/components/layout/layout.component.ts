@@ -134,8 +134,9 @@ export class LayoutComponent implements OnInit, OnDestroy {
     { label: 'Kanban', icon: 'view_kanban', route: '/kanban', roles: ['manager', 'engineer'] },
     { label: 'Clients', icon: 'business', route: '/clients', roles: ['manager'] },
     { label: 'Calendar', icon: 'calendar_today', route: '/calendar', roles: ['manager'] },
-    { label: 'Reports', icon: 'assessment', route: '/reports', roles: ['manager'] },
+    { label: 'Reports', icon: 'assessment', route: '/reports', roles: ['manager', 'engineer'] },
     { label: 'Users', icon: 'people', route: '/admin/users', roles: ['manager'] },
+    { label: 'Tags', icon: 'label', route: '/admin/tags', roles: ['manager'] },
     { label: 'My Tickets', icon: 'confirmation_number', route: '/portal', roles: ['client'] },
   ];
 

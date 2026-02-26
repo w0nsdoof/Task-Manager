@@ -30,6 +30,14 @@ class IsAssignedEngineer(BasePermission):
         )
 
 
+class IsManagerOrEngineer(BasePermission):
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ("manager", "engineer")
+        )
+
+
 class IsManagerOrReadOnly(BasePermission):
     def has_permission(self, request, view):
         if request.method in ("GET", "HEAD", "OPTIONS"):

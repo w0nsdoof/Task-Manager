@@ -3,7 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsManager, IsManagerOrReadOnly
+from apps.accounts.permissions import IsManager, IsManagerOrEngineer, IsManagerOrReadOnly
 from apps.audit.models import AuditLogEntry
 from apps.audit.services import create_audit_entry
 from apps.notifications.services import create_notification
@@ -11,10 +11,12 @@ from apps.organizations.mixins import OrganizationQuerySetMixin
 from apps.tasks.models import Task
 from apps.tasks.serializers import (
     TaskAssignSerializer,
+    TaskCreateEngineerSerializer,
     TaskCreateSerializer,
     TaskDetailSerializer,
     TaskListSerializer,
     TaskStatusChangeSerializer,
+    TaskUpdateEngineerSerializer,
     TaskUpdateSerializer,
 )
 from apps.tasks.services import MANAGER_ONLY_TRANSITIONS, apply_status_change
@@ -29,8 +31,10 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def get_permissions(self):
-        if self.action in ("create",):
+        if self.action == "assign":
             return [IsManager()]
+        if self.action in ("create", "partial_update", "update", "change_status"):
+            return [IsManagerOrEngineer()]
         return [IsManagerOrReadOnly()]
 
     def get_queryset(self):
@@ -71,10 +75,22 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
         if self.action == "list":
             return TaskListSerializer
         if self.action == "create":
+            if self.request.user.role == "engineer":
+                return TaskCreateEngineerSerializer
             return TaskCreateSerializer
         if self.action in ("update", "partial_update"):
+            if self.request.user.role == "engineer":
+                return TaskUpdateEngineerSerializer
             return TaskUpdateSerializer
         return TaskDetailSerializer
+
+    def perform_update(self, serializer):
+        if self.request.user.role == "engineer":
+            task = self.get_object()
+            if self.request.user not in task.assignees.all():
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("Engineers can only edit tasks they are assigned to.")
+        serializer.save()
 
     @action(detail=True, methods=["post"], url_path="status")
     def change_status(self, request, pk=None):
@@ -189,9 +205,9 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):
         task = self.get_object()
-        if request.user.role != "manager":
+        if request.user.role not in ("manager", "engineer"):
             return Response(
-                {"detail": "Only managers can view audit history."},
+                {"detail": "Only managers and engineers can view audit history."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 

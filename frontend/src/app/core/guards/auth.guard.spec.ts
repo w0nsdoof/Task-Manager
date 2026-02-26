@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, UrlTree } from '@angular/router';
 import { of } from 'rxjs';
-import { authGuard, managerGuard, engineerGuard, clientGuard } from './auth.guard';
+import { authGuard, managerGuard, managerOrEngineerGuard, engineerGuard, clientGuard } from './auth.guard';
 import { AuthService } from '../services/auth.service';
 
 describe('Auth Guards', () => {
@@ -79,6 +79,32 @@ describe('Auth Guards', () => {
       authService.isLoggedIn.and.returnValue(false);
       authService.hasRole.and.returnValue(false);
       expect(runGuard(managerGuard)).toBe(rootUrlTree);
+    });
+  });
+
+  describe('managerOrEngineerGuard', () => {
+    it('should allow access for logged-in manager', () => {
+      authService.isLoggedIn.and.returnValue(true);
+      authService.hasRole.and.callFake((r: string) => r === 'manager');
+      expect(runGuard(managerOrEngineerGuard)).toBeTrue();
+    });
+
+    it('should allow access for logged-in engineer', () => {
+      authService.isLoggedIn.and.returnValue(true);
+      authService.hasRole.and.callFake((r: string) => r === 'engineer');
+      expect(runGuard(managerOrEngineerGuard)).toBeTrue();
+    });
+
+    it('should redirect to / for client', () => {
+      authService.isLoggedIn.and.returnValue(true);
+      authService.hasRole.and.returnValue(false);
+      expect(runGuard(managerOrEngineerGuard)).toBe(rootUrlTree);
+    });
+
+    it('should redirect to / when not logged in', () => {
+      authService.isLoggedIn.and.returnValue(false);
+      authService.hasRole.and.returnValue(false);
+      expect(runGuard(managerOrEngineerGuard)).toBe(rootUrlTree);
     });
   });
 

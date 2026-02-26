@@ -57,6 +57,13 @@ interface KanbanColumn {
           </mat-card-header>
           <mat-card-content>
             <mat-chip [class]="'priority-' + task.priority">{{ task.priority }}</mat-chip>
+            <div class="card-tags" *ngIf="task.tags.length">
+              <span *ngFor="let t of task.tags" class="card-tag"
+                    [style.background-color]="t.color"
+                    [style.color]="isLightColor(t.color) ? '#000' : '#fff'">
+                {{ t.name }}
+              </span>
+            </div>
             <div class="assignees" *ngIf="task.assignees.length">
               <span *ngFor="let a of task.assignees; let last = last">
                 {{ a.first_name }} {{ a.last_name }}<span *ngIf="!last">, </span>
@@ -80,6 +87,8 @@ interface KanbanColumn {
     .kanban-card mat-card-header mat-card-title { flex: 1; }
     .card-menu-btn { flex-shrink: 0; margin: -8px -8px -8px 0; }
     .menu-header { font-size: 12px; opacity: 0.6; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .card-tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; white-space: nowrap; }
     .assignees { font-size: 12px; margin-top: 8px; color: #616161; }
     .deadline { font-size: 12px; margin-top: 4px; color: #9e9e9e; }
     .cdk-drag-preview { box-shadow: 0 5px 5px -3px rgba(0,0,0,.2); }
@@ -157,6 +166,14 @@ export class KanbanBoardComponent implements OnInit, OnDestroy {
 
   getNextStatuses(currentStatus: string): string[] {
     return VALID_TRANSITIONS[currentStatus] || [];
+  }
+
+  isLightColor(hex: string): boolean {
+    const c = hex.replace('#', '');
+    const r = parseInt(c.substring(0, 2), 16);
+    const g = parseInt(c.substring(2, 4), 16);
+    const b = parseInt(c.substring(4, 6), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 > 150;
   }
 
   onMenuChangeStatus(task: TaskListItem, currentCol: KanbanColumn, newStatus: string): void {

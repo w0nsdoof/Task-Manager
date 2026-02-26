@@ -16,6 +16,7 @@ import { Subject, takeUntil } from 'rxjs';
 import { TaskService, TaskCreatePayload } from '../../../../core/services/task.service';
 import { ClientService, Client } from '../../../../core/services/client.service';
 import { TagService, Tag } from '../../../../core/services/tag.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { environment } from '../../../../../environments/environment';
 
 interface UserOption {
@@ -69,7 +70,7 @@ interface UserOption {
             </mat-form-field>
           </div>
 
-          <mat-form-field appearance="outline" class="full-width">
+          <mat-form-field *ngIf="isManager" appearance="outline" class="full-width">
             <mat-label>Assignees</mat-label>
             <mat-select formControlName="assignee_ids" multiple (openedChange)="onAssigneeDropdownToggle($event)">
               <div class="select-search">
@@ -83,7 +84,7 @@ interface UserOption {
             </mat-select>
           </mat-form-field>
 
-          <mat-form-field appearance="outline" class="full-width">
+          <mat-form-field *ngIf="isManager" appearance="outline" class="full-width">
             <mat-label>Client</mat-label>
             <mat-select formControlName="client_id">
               <mat-option [value]="null">None</mat-option>
@@ -131,6 +132,7 @@ export class TaskFormComponent implements OnInit, OnDestroy {
   isEdit = false;
   saving = false;
   taskId: number | null = null;
+  isManager = false;
   clients: Client[] = [];
   tags: Tag[] = [];
   engineers: UserOption[] = [];
@@ -143,12 +145,15 @@ export class TaskFormComponent implements OnInit, OnDestroy {
     private taskService: TaskService,
     private clientService: ClientService,
     private tagService: TagService,
+    private authService: AuthService,
     private router: Router,
     private route: ActivatedRoute,
     private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
+    this.isManager = this.authService.hasRole('manager');
+
     this.taskForm = this.fb.group({
       title: ['', Validators.required],
       description: ['', Validators.required],
@@ -159,16 +164,18 @@ export class TaskFormComponent implements OnInit, OnDestroy {
       tag_ids: [[]],
     });
 
-    this.http.get<any>(`${environment.apiUrl}/users/`, { params: { role: 'engineer', is_active: 'true', page_size: '100' } })
-      .pipe(takeUntil(this.destroy$)).subscribe((res) => {
-        this.engineers = res.results;
-        this.filteredEngineers = res.results;
+    if (this.isManager) {
+      this.http.get<any>(`${environment.apiUrl}/users/`, { params: { role: 'engineer', is_active: 'true', page_size: '100' } })
+        .pipe(takeUntil(this.destroy$)).subscribe((res) => {
+          this.engineers = res.results;
+          this.filteredEngineers = res.results;
+          this.cdr.markForCheck();
+        });
+      this.clientService.list({ page_size: 100 } as any).pipe(takeUntil(this.destroy$)).subscribe((res) => {
+        this.clients = res.results;
         this.cdr.markForCheck();
       });
-    this.clientService.list({ page_size: 100 } as any).pipe(takeUntil(this.destroy$)).subscribe((res) => {
-      this.clients = res.results;
-      this.cdr.markForCheck();
-    });
+    }
     this.tagService.list().pipe(takeUntil(this.destroy$)).subscribe((res) => {
       this.tags = res.results;
       this.cdr.markForCheck();
@@ -206,9 +213,13 @@ export class TaskFormComponent implements OnInit, OnDestroy {
       const assigneeIds: number[] = val.assignee_ids || [];
       const { assignee_ids, ...updatePayload } = payload;
       this.taskService.update(this.taskId, updatePayload).pipe(takeUntil(this.destroy$)).subscribe(() => {
-        this.taskService.assign(this.taskId!, assigneeIds).pipe(takeUntil(this.destroy$)).subscribe(() => {
+        if (this.isManager) {
+          this.taskService.assign(this.taskId!, assigneeIds).pipe(takeUntil(this.destroy$)).subscribe(() => {
+            this.router.navigate(['/tasks']);
+          });
+        } else {
           this.router.navigate(['/tasks']);
-        });
+        }
       });
     } else {
       this.taskService.create(payload).pipe(takeUntil(this.destroy$)).subscribe(() => {

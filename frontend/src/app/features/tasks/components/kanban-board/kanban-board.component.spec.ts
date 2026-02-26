@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { of, Subject } from 'rxjs';
 import { KanbanBoardComponent } from './kanban-board.component';
@@ -45,6 +47,8 @@ describe('KanbanBoardComponent', () => {
       imports: [KanbanBoardComponent],
       providers: [
         provideNoopAnimations(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         provideRouter([]),
         { provide: TaskService, useValue: taskService },
         { provide: WebSocketService, useValue: wsServiceMock },

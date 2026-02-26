@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, managerGuard, clientGuard, superadminGuard } from './core/guards/auth.guard';
+import { authGuard, managerGuard, managerOrEngineerGuard, clientGuard, superadminGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./core/components/login/login.component').then(m => m.LoginComponent) },
@@ -29,7 +29,7 @@ export const routes: Routes = [
       },
       {
         path: 'reports',
-        canActivate: [managerGuard],
+        canActivate: [managerOrEngineerGuard],
         children: [
           {
             path: '',
@@ -49,6 +49,11 @@ export const routes: Routes = [
         path: 'admin/users',
         canActivate: [managerGuard],
         loadComponent: () => import('./features/admin/user-management.component').then(m => m.UserManagementComponent),
+      },
+      {
+        path: 'admin/tags',
+        canActivate: [managerGuard],
+        loadComponent: () => import('./features/admin/tag-management.component').then(m => m.TagManagementComponent),
       },
       {
         path: 'portal',

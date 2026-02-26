@@ -17,7 +17,7 @@ class AssigneeSerializer(serializers.ModelSerializer):
 class TagBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = ["id", "name", "slug"]
+        fields = ["id", "name", "slug", "color"]
 
 
 class ClientBriefSerializer(serializers.ModelSerializer):
@@ -154,6 +154,70 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
 
         if client_id is not None:
             validated_data["client_id"] = client_id
+
+        from apps.tasks.services import update_task_with_version
+        success, error, task = update_task_with_version(
+            instance, validated_data, self.context["request"].user
+        )
+        if not success:
+            raise serializers.ValidationError(error)
+
+        if tag_ids is not None:
+            task.tags.set(tag_ids)
+
+        return task
+
+
+class TaskCreateEngineerSerializer(serializers.ModelSerializer):
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
+
+    class Meta:
+        model = Task
+        fields = ["title", "description", "priority", "deadline", "tag_ids"]
+
+    def validate_tag_ids(self, value):
+        if value:
+            tags = Tag.objects.filter(pk__in=value)
+            if tags.count() != len(value):
+                raise serializers.ValidationError("One or more tags are invalid.")
+        return value
+
+    def create(self, validated_data):
+        tag_ids = validated_data.pop("tag_ids", [])
+        user = self.context["request"].user
+        validated_data["created_by"] = user
+        validated_data["organization"] = user.organization
+        task = Task.objects.create(**validated_data)
+
+        if tag_ids:
+            task.tags.set(tag_ids)
+
+        from apps.audit.models import AuditLogEntry
+        from apps.audit.services import create_audit_entry
+        create_audit_entry(
+            task=task,
+            actor=user,
+            action=AuditLogEntry.Action.FIELD_UPDATE,
+            field_name="task",
+            new_value=f"Task '{task.title}' created",
+        )
+
+        return task
+
+
+class TaskUpdateEngineerSerializer(serializers.ModelSerializer):
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False
+    )
+
+    class Meta:
+        model = Task
+        fields = ["title", "description", "priority", "deadline", "tag_ids"]
+
+    def update(self, instance, validated_data):
+        tag_ids = validated_data.pop("tag_ids", None)
 
         from apps.tasks.services import update_task_with_version
         success, error, task = update_task_with_version(

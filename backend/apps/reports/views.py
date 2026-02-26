@@ -3,12 +3,12 @@ from django.http import FileResponse
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsManager
+from apps.accounts.permissions import IsManager, IsManagerOrEngineer
 from apps.reports.services import generate_excel_report, generate_pdf_report, get_report_data
 
 
 class ReportSummaryView(APIView):
-    permission_classes = [IsManager]
+    permission_classes = [IsManagerOrEngineer]
 
     def get(self, request):
         date_from = request.query_params.get("date_from")
