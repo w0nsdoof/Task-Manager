@@ -1,4 +1,5 @@
-from django.db.models import Count
+from django.db.models import Count, Q
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -24,7 +25,7 @@ from apps.tasks.services import MANAGER_ONLY_TRANSITIONS, apply_status_change
 
 class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     queryset = Task.objects.all()
-    filterset_fields = ["status", "priority", "client"]
+    filterset_fields = ["priority", "client"]
     search_fields = ["title", "description"]
     ordering_fields = ["created_at", "deadline", "priority"]
     ordering = ["-created_at"]
@@ -68,6 +69,27 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
         deadline_to = self.request.query_params.get("deadline_to")
         if deadline_to:
             qs = qs.filter(deadline__lte=deadline_to)
+
+        # Status filtering with archive logic:
+        # - ?status=archived: show archived AND done+expired tasks
+        # - ?status=<other>: standard filter
+        # - No status filter: hide archived and done+expired tasks
+        explicit_status = self.request.query_params.get("status")
+        if self.action == "list":
+            now = timezone.now()
+            if explicit_status == "archived":
+                qs = qs.filter(
+                    Q(status=Task.Status.ARCHIVED)
+                    | Q(status=Task.Status.DONE, deadline__lt=now)
+                )
+            elif explicit_status:
+                qs = qs.filter(status=explicit_status)
+            else:
+                qs = qs.exclude(status=Task.Status.ARCHIVED).exclude(
+                    Q(status=Task.Status.DONE) & Q(deadline__lt=now)
+                )
+        elif explicit_status:
+            qs = qs.filter(status=explicit_status)
 
         return qs
 

@@ -54,6 +54,49 @@ class TestTaskList:
         assert resp.data["count"] == 1
 
 
+    def test_archived_tasks_excluded_from_default_list(self, manager_client, manager):
+        TaskFactory(created_by=manager, status=Task.Status.CREATED)
+        TaskFactory(created_by=manager, status=Task.Status.ARCHIVED)
+        resp = manager_client.get(TASKS_URL)
+        assert resp.data["count"] == 1
+
+    def test_done_expired_tasks_excluded_from_default_list(self, manager_client, manager):
+        TaskFactory(created_by=manager, status=Task.Status.CREATED)
+        TaskFactory(
+            created_by=manager,
+            status=Task.Status.DONE,
+            deadline=timezone.now() - timezone.timedelta(days=1),
+        )
+        resp = manager_client.get(TASKS_URL)
+        assert resp.data["count"] == 1
+
+    def test_done_future_deadline_still_visible(self, manager_client, manager):
+        TaskFactory(
+            created_by=manager,
+            status=Task.Status.DONE,
+            deadline=timezone.now() + timezone.timedelta(days=1),
+        )
+        resp = manager_client.get(TASKS_URL)
+        assert resp.data["count"] == 1
+
+    def test_filter_by_archived_status_returns_archived(self, manager_client, manager):
+        TaskFactory(created_by=manager, status=Task.Status.CREATED)
+        TaskFactory(created_by=manager, status=Task.Status.ARCHIVED)
+        resp = manager_client.get(TASKS_URL, {"status": "archived"})
+        assert resp.data["count"] == 1
+
+    def test_filter_by_archived_includes_done_expired(self, manager_client, manager):
+        TaskFactory(created_by=manager, status=Task.Status.CREATED)
+        TaskFactory(created_by=manager, status=Task.Status.ARCHIVED)
+        TaskFactory(
+            created_by=manager,
+            status=Task.Status.DONE,
+            deadline=timezone.now() - timezone.timedelta(days=1),
+        )
+        resp = manager_client.get(TASKS_URL, {"status": "archived"})
+        assert resp.data["count"] == 2
+
+
 @pytest.mark.django_db
 class TestTaskCreate:
     def test_manager_creates_task(self, manager_client, manager):
