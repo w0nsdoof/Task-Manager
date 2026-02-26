@@ -80,6 +80,20 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
         <td mat-cell *matCellDef="let task">{{ task.client?.name || '-' }}</td>
       </ng-container>
 
+      <ng-container matColumnDef="tags">
+        <th mat-header-cell *matHeaderCellDef>Tags</th>
+        <td mat-cell *matCellDef="let task">
+          <mat-chip-set>
+            <mat-chip *ngFor="let t of task.tags"
+                      [style.background-color]="t.color"
+                      [style.color]="isLightColor(t.color) ? '#000' : '#fff'"
+                      class="tag-chip">
+              {{ t.name }}
+            </mat-chip>
+          </mat-chip-set>
+        </td>
+      </ng-container>
+
       <ng-container matColumnDef="deadline">
         <th mat-header-cell *matHeaderCellDef>Deadline</th>
         <td mat-cell *matCellDef="let task">{{ task.deadline | date:'mediumDate' }}</td>
@@ -101,6 +115,7 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
     .full-width { width: 100%; }
     table { margin-bottom: 16px; }
     a { text-decoration: none; color: #1976d2; }
+    .tag-chip { font-size: 11px; min-height: 24px; padding: 2px 8px; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -110,7 +125,7 @@ export class TaskListComponent implements OnInit, OnDestroy {
   currentPage = 1;
   pageSize = 20;
   isManager = false;
-  displayedColumns = ['title', 'status', 'priority', 'assignees', 'client', 'deadline'];
+  displayedColumns = ['title', 'status', 'priority', 'assignees', 'client', 'tags', 'deadline'];
   private searchTerm = '';
   private activeFilters: FilterState = {};
   private destroy$ = new Subject<void>();
@@ -178,6 +193,14 @@ export class TaskListComponent implements OnInit, OnDestroy {
     this.activeFilters = filters;
     this.currentPage = 1;
     this.loadTasks();
+  }
+
+  isLightColor(hex: string): boolean {
+    const c = hex.replace('#', '');
+    const r = parseInt(c.substring(0, 2), 16);
+    const g = parseInt(c.substring(2, 4), 16);
+    const b = parseInt(c.substring(4, 6), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 > 150;
   }
 
   onPageChange(event: PageEvent): void {

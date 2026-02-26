@@ -17,7 +17,7 @@ class AssigneeSerializer(serializers.ModelSerializer):
 class TagBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = ["id", "name", "slug"]
+        fields = ["id", "name", "slug", "color"]
 
 
 class ClientBriefSerializer(serializers.ModelSerializer):

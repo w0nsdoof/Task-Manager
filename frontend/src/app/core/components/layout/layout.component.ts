@@ -136,6 +136,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
     { label: 'Calendar', icon: 'calendar_today', route: '/calendar', roles: ['manager'] },
     { label: 'Reports', icon: 'assessment', route: '/reports', roles: ['manager'] },
     { label: 'Users', icon: 'people', route: '/admin/users', roles: ['manager'] },
+    { label: 'Tags', icon: 'label', route: '/admin/tags', roles: ['manager'] },
     { label: 'My Tickets', icon: 'confirmation_number', route: '/portal', roles: ['client'] },
   ];
 
