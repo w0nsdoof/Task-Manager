@@ -7,6 +7,8 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { TranslateModule } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
 import { ClientService, Client } from '../../../../core/services/client.service';
 import { TagService, Tag } from '../../../../core/services/tag.service';
@@ -27,68 +29,86 @@ export interface FilterState {
   imports: [
     CommonModule, FormsModule, MatSelectModule, MatFormFieldModule,
     MatDatepickerModule, MatNativeDateModule, MatInputModule,
-    MatButtonModule,
+    MatButtonModule, MatIconModule, TranslateModule,
   ],
   template: `
     <div class="filter-panel">
-      <mat-form-field appearance="outline" *ngIf="showStatus">
-        <mat-label>Status</mat-label>
+      <mat-form-field appearance="outline" class="compact-field" *ngIf="showStatus">
+        <mat-label>{{ 'filters.status' | translate }}</mat-label>
         <mat-select [(ngModel)]="filters.status" (ngModelChange)="emitFilters()">
-          <mat-option [value]="undefined">All</mat-option>
-          <mat-option value="created">Created</mat-option>
-          <mat-option value="in_progress">In Progress</mat-option>
-          <mat-option value="waiting">Waiting</mat-option>
-          <mat-option value="done">Done</mat-option>
-          <mat-option value="archived">Archived</mat-option>
+          <mat-option [value]="undefined">{{ 'common.all' | translate }}</mat-option>
+          <mat-option value="created">{{ 'statuses.created' | translate }}</mat-option>
+          <mat-option value="in_progress">{{ 'statuses.in_progress' | translate }}</mat-option>
+          <mat-option value="waiting">{{ 'statuses.waiting' | translate }}</mat-option>
+          <mat-option value="done">{{ 'statuses.done' | translate }}</mat-option>
+          <mat-option value="archived">{{ 'statuses.archived' | translate }}</mat-option>
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Priority</mat-label>
+      <mat-form-field appearance="outline" class="compact-field">
+        <mat-label>{{ 'filters.priority' | translate }}</mat-label>
         <mat-select [(ngModel)]="filters.priority" (ngModelChange)="emitFilters()">
-          <mat-option [value]="undefined">All</mat-option>
-          <mat-option value="low">Low</mat-option>
-          <mat-option value="medium">Medium</mat-option>
-          <mat-option value="high">High</mat-option>
-          <mat-option value="critical">Critical</mat-option>
+          <mat-option [value]="undefined">{{ 'common.all' | translate }}</mat-option>
+          <mat-option value="low">{{ 'priorities.low' | translate }}</mat-option>
+          <mat-option value="medium">{{ 'priorities.medium' | translate }}</mat-option>
+          <mat-option value="high">{{ 'priorities.high' | translate }}</mat-option>
+          <mat-option value="critical">{{ 'priorities.critical' | translate }}</mat-option>
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Deadline from</mat-label>
+      <mat-form-field appearance="outline" class="compact-field">
+        <mat-label>{{ 'filters.deadlineFrom' | translate }}</mat-label>
         <input matInput [matDatepicker]="fromPicker" [(ngModel)]="deadlineFrom" (dateChange)="onDeadlineChange()" />
         <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
         <mat-datepicker #fromPicker></mat-datepicker>
       </mat-form-field>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Deadline to</mat-label>
+      <mat-form-field appearance="outline" class="compact-field">
+        <mat-label>{{ 'filters.deadlineTo' | translate }}</mat-label>
         <input matInput [matDatepicker]="toPicker" [(ngModel)]="deadlineTo" (dateChange)="onDeadlineChange()" />
         <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
         <mat-datepicker #toPicker></mat-datepicker>
       </mat-form-field>
 
-      <mat-form-field appearance="outline" *ngIf="showClient">
-        <mat-label>Client</mat-label>
+      <mat-form-field appearance="outline" class="compact-field" *ngIf="showClient">
+        <mat-label>{{ 'filters.client' | translate }}</mat-label>
         <mat-select [(ngModel)]="filters.client" (ngModelChange)="emitFilters()">
-          <mat-option [value]="undefined">All</mat-option>
+          <mat-option [value]="undefined">{{ 'common.all' | translate }}</mat-option>
           <mat-option *ngFor="let c of clients" [value]="c.id">{{ c.name }}</mat-option>
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Tags</mat-label>
+      <mat-form-field appearance="outline" class="compact-field">
+        <mat-label>{{ 'filters.tags' | translate }}</mat-label>
         <mat-select [(ngModel)]="selectedTagSlugs" (ngModelChange)="onTagsChange()" multiple>
           <mat-option *ngFor="let t of tags" [value]="t.slug">{{ t.name }}</mat-option>
         </mat-select>
       </mat-form-field>
 
-      <button mat-button (click)="clearFilters()">Clear Filters</button>
+      <button class="clear-btn" (click)="clearFilters()">
+        <mat-icon>filter_list_off</mat-icon>
+        {{ 'filters.clearFilters' | translate }}
+      </button>
     </div>
   `,
   styles: [`
-    .filter-panel { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
-    mat-form-field { min-width: 150px; }
+    .filter-panel {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 16px;
+    }
+    .compact-field {
+      min-width: 140px; max-width: 180px;
+      font-size: 13px;
+    }
+    .clear-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: none; border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 8px; padding: 8px 14px;
+      font-size: 13px; color: var(--text-secondary, #6b7280);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .clear-btn:hover { background: #f9fafb; color: var(--text-primary, #1a1a1a); }
+    .clear-btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

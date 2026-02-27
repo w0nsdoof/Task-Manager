@@ -7,46 +7,65 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { Router, ActivatedRoute } from '@angular/router';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
 import { ClientService } from '../../../../core/services/client.service';
 
 @Component({
   selector: 'app-client-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonModule, MatCardModule],
+  imports: [CommonModule, ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatButtonModule, MatCardModule, TranslateModule],
   template: `
-    <mat-card>
-      <mat-card-header><mat-card-title>{{ isEdit ? 'Edit Client' : 'New Client' }}</mat-card-title></mat-card-header>
-      <mat-card-content>
+    <div class="form-page">
+      <div class="page-header">
+        <h2>{{ (isEdit ? 'clients.editClient' : 'clients.newClient') | translate }}</h2>
+      </div>
+      <div class="form-card flat-card">
         <form [formGroup]="form" (ngSubmit)="onSubmit()">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Name</mat-label><input matInput formControlName="name" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Type</mat-label>
-            <mat-select formControlName="client_type">
-              <mat-option value="company">Company</mat-option>
-              <mat-option value="individual">Individual</mat-option>
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Phone</mat-label><input matInput formControlName="phone" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Email</mat-label><input matInput formControlName="email" type="email" />
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Contact Person</mat-label><input matInput formControlName="contact_person" />
-          </mat-form-field>
-          <div class="actions">
-            <button mat-button type="button" (click)="cancel()">Cancel</button>
-            <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving">{{ isEdit ? 'Update' : 'Create' }}</button>
+          <div class="form-group">
+            <label class="flat-input-label">{{ 'common.name' | translate }}</label>
+            <input class="flat-input" formControlName="name" />
+          </div>
+          <div class="form-group">
+            <label class="flat-input-label">{{ 'clients.type' | translate }}</label>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-select formControlName="client_type">
+                <mat-option value="company">{{ 'clients.company' | translate }}</mat-option>
+                <mat-option value="individual">{{ 'clients.individual' | translate }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <div class="form-group">
+            <label class="flat-input-label">{{ 'common.phone' | translate }}</label>
+            <input class="flat-input" formControlName="phone" />
+          </div>
+          <div class="form-group">
+            <label class="flat-input-label">{{ 'common.email' | translate }}</label>
+            <input class="flat-input" formControlName="email" type="email" />
+          </div>
+          <div class="form-group">
+            <label class="flat-input-label">{{ 'clients.contactPerson' | translate }}</label>
+            <input class="flat-input" formControlName="contact_person" />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="flat-btn-outline" (click)="cancel()">{{ 'common.cancel' | translate }}</button>
+            <button class="flat-btn-primary" type="submit" [disabled]="form.invalid || saving">
+              {{ (isEdit ? 'common.update' : 'common.create') | translate }}
+            </button>
           </div>
         </form>
-      </mat-card-content>
-    </mat-card>
+      </div>
+    </div>
   `,
-  styles: [`.full-width { width: 100%; } .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }`],
+  styles: [`
+    .form-page { max-width: 600px; }
+    .page-header { margin-bottom: 24px; }
+    .page-header h2 { font-size: 22px; font-weight: 700; margin: 0; }
+    .form-card { padding: 32px; }
+    .full-width { width: 100%; }
+    .form-group { margin-bottom: 20px; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }
+  `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClientFormComponent implements OnInit, OnDestroy {

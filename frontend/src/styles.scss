@@ -35,12 +35,314 @@ $frontend-theme: mat.define-light-theme((
 // that you are using.
 @include mat.all-component-themes($frontend-theme);
 
-/* You can add global styles to this file, and also import other style files */
+/* ========================================
+   CSS Custom Properties (Design Tokens)
+   ======================================== */
+:root {
+  --primary-blue: #1a7cf4;
+  --primary-blue-hover: #1565c0;
+  --bg-gray: #f9f9f9;
+  --input-bg: #f5f5f5;
+  --border-radius-card: 12px;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 64px;
+  --header-height: 64px;
+}
 
+/* ========================================
+   Base Styles
+   ======================================== */
 html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+body {
+  margin: 0;
+  font-family: 'Inter', Roboto, "Helvetica Neue", sans-serif;
+  color: var(--text-primary);
+  background: var(--bg-gray);
+}
 
-/* Task status chip colors */
+/* ========================================
+   Global Material Overrides
+   ======================================== */
+
+/* Mat Table */
+.mat-mdc-table {
+  background: #fff;
+  border-radius: var(--border-radius-card);
+  overflow: hidden;
+  box-shadow: none;
+  border: 1px solid var(--border-color);
+}
+
+.mat-mdc-header-row {
+  background: #fafafa;
+}
+
+.mat-mdc-header-cell {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  border-bottom-color: var(--border-color);
+}
+
+.mat-mdc-cell {
+  border-bottom-color: var(--border-color);
+  font-size: 14px;
+}
+
+.mat-mdc-row:hover {
+  background: #f8fafc;
+}
+
+/* Mat Paginator */
+.mat-mdc-paginator {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Mat Chip overrides */
+.mat-mdc-chip {
+  font-size: 12px;
+}
+
+/* ========================================
+   Shared Utility Classes
+   ======================================== */
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-primary);
+  }
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 20px 0;
+}
+
+/* Flat input */
+.flat-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--input-bg);
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+
+  &:focus {
+    border-color: var(--primary-blue);
+    background: #fff;
+  }
+}
+
+.flat-input-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+/* Flat primary button */
+.flat-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: var(--primary-blue);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover {
+    background: var(--primary-blue-hover);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  mat-icon, .material-icons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.flat-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: #fff;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #f5f5f5;
+  }
+}
+
+/* Stat cards */
+.stat-card {
+  background: #fff;
+  border-radius: var(--border-radius-card);
+  padding: 20px;
+  border: 1px solid var(--border-color);
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+}
+
+/* Role chips */
+.role-chip {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.role-chip-manager {
+  @extend .role-chip;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.role-chip-engineer {
+  @extend .role-chip;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.role-chip-admin {
+  @extend .role-chip;
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.role-chip-client {
+  @extend .role-chip;
+  background: #ecfdf5;
+  color: #059669;
+}
+
+/* Status tab bar */
+.status-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: 20px;
+
+  .status-tab {
+    padding: 10px 20px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-weight: 500;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+
+    &.active {
+      color: var(--primary-blue);
+      border-bottom-color: var(--primary-blue);
+    }
+  }
+}
+
+/* View toggle */
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+
+  .toggle-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    background: #fff;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    &.active {
+      background: var(--primary-blue);
+      color: #fff;
+    }
+
+    &:not(:last-child) {
+      border-right: 1px solid var(--border-color);
+    }
+  }
+}
+
+/* Card style */
+.flat-card {
+  background: #fff;
+  border-radius: var(--border-radius-card);
+  border: 1px solid var(--border-color);
+  padding: 24px;
+}
+
+/* ========================================
+   Task Status Chip Colors
+   ======================================== */
 .status-created { background-color: #e3f2fd !important; color: #1565c0 !important; }
 .status-in_progress { background-color: #fff3e0 !important; color: #e65100 !important; }
 .status-waiting { background-color: #fce4ec !important; color: #c62828 !important; }
@@ -52,3 +354,18 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 .priority-medium { background-color: #fff3e0 !important; color: #e65100 !important; }
 .priority-high { background-color: #ffebee !important; color: #c62828 !important; }
 .priority-critical { background-color: #880e4f !important; color: #fff !important; }
+
+/* ========================================
+   Filter row compact style
+   ======================================== */
+.compact-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+
+  .mat-mdc-form-field {
+    font-size: 13px;
+  }
+}

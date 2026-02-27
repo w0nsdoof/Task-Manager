@@ -15,6 +15,7 @@ import { MatTableModule } from '@angular/material/table';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { environment } from '../../../environments/environment';
 import { SummaryService, SummaryListItem } from '../../core/services/summary.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -26,153 +27,189 @@ import { AuthService } from '../../core/services/auth.service';
     CommonModule, FormsModule, RouterModule, MatCardModule, MatFormFieldModule,
     MatInputModule, MatDatepickerModule, MatNativeDateModule,
     MatButtonModule, MatIconModule, MatTableModule, MatChipsModule,
-    MatProgressSpinnerModule, MatSnackBarModule,
+    MatProgressSpinnerModule, MatSnackBarModule, TranslateModule,
   ],
   template: `
-    <h2>Reports</h2>
+    <div class="page-header">
+      <h2>{{ 'nav.analytics' | translate }}</h2>
+      <a mat-button routerLink="/reports/summaries" class="flat-btn-outline">
+        <mat-icon>history</mat-icon> {{ 'reports.viewAllSummaries' | translate }}
+      </a>
+    </div>
 
     <!-- AI Summary Section -->
     <div class="ai-summary-section">
-      <div class="section-header">
-        <h3>AI Summaries</h3>
-        <a mat-button color="primary" routerLink="/reports/summaries">
-          <mat-icon>history</mat-icon> View All Summaries
-        </a>
-      </div>
+      <h3 class="section-title">{{ 'reports.aiSummaries' | translate }}</h3>
 
       <div *ngIf="summaryLoading" style="text-align: center; padding: 24px;">
         <mat-spinner diameter="32"></mat-spinner>
       </div>
 
       <div class="summary-cards" *ngIf="!summaryLoading && (dailySummary || weeklySummary)">
-        <mat-card *ngIf="dailySummary" class="summary-card clickable-card"
-                  [routerLink]="['/reports/summaries', dailySummary.id]">
-          <mat-card-header>
-            <mat-card-title>Daily Summary</mat-card-title>
-            <mat-card-subtitle>
-              {{ dailySummary.period_start }}
+        <div *ngIf="dailySummary" class="summary-card"
+             [routerLink]="['/reports/summaries', dailySummary.id]">
+          <div class="summary-card-accent"></div>
+          <div class="summary-card-body">
+            <div class="summary-card-header">
+              <strong>{{ 'reports.dailySummary' | translate }}</strong>
               <span class="method-badge" [class.ai]="dailySummary.generation_method === 'ai'" [class.fallback]="dailySummary.generation_method === 'fallback'">
-                {{ dailySummary.generation_method === 'ai' ? 'AI' : 'Fallback' }}
+                {{ dailySummary.generation_method === 'ai' ? ('reports.ai' | translate) : ('reports.fallback' | translate) }}
               </span>
-            </mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
+            </div>
+            <p class="summary-period">{{ dailySummary.period_start }}</p>
             <p class="summary-preview">{{ dailySummary.summary_text | slice:0:200 }}{{ dailySummary.summary_text.length > 200 ? '...' : '' }}</p>
-            <small class="generated-at">Generated: {{ dailySummary.generated_at | date:'medium' }}</small>
-          </mat-card-content>
-        </mat-card>
+            <small class="generated-at">{{ 'reports.generated' | translate }} {{ dailySummary.generated_at | date:'medium' }}</small>
+          </div>
+        </div>
 
-        <mat-card *ngIf="weeklySummary" class="summary-card clickable-card"
-                  [routerLink]="['/reports/summaries', weeklySummary.id]">
-          <mat-card-header>
-            <mat-card-title>Weekly Summary</mat-card-title>
-            <mat-card-subtitle>
-              {{ weeklySummary.period_start }} — {{ weeklySummary.period_end }}
+        <div *ngIf="weeklySummary" class="summary-card"
+             [routerLink]="['/reports/summaries', weeklySummary.id]">
+          <div class="summary-card-accent"></div>
+          <div class="summary-card-body">
+            <div class="summary-card-header">
+              <strong>{{ 'reports.weeklySummary' | translate }}</strong>
               <span class="method-badge" [class.ai]="weeklySummary.generation_method === 'ai'" [class.fallback]="weeklySummary.generation_method === 'fallback'">
-                {{ weeklySummary.generation_method === 'ai' ? 'AI' : 'Fallback' }}
+                {{ weeklySummary.generation_method === 'ai' ? ('reports.ai' | translate) : ('reports.fallback' | translate) }}
               </span>
-            </mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
+            </div>
+            <p class="summary-period">{{ weeklySummary.period_start }} — {{ weeklySummary.period_end }}</p>
             <p class="summary-preview">{{ weeklySummary.summary_text | slice:0:200 }}{{ weeklySummary.summary_text.length > 200 ? '...' : '' }}</p>
-            <small class="generated-at">Generated: {{ weeklySummary.generated_at | date:'medium' }}</small>
-          </mat-card-content>
-        </mat-card>
+            <small class="generated-at">{{ 'reports.generated' | translate }} {{ weeklySummary.generated_at | date:'medium' }}</small>
+          </div>
+        </div>
       </div>
 
       <p *ngIf="!summaryLoading && !dailySummary && !weeklySummary" class="no-summaries">
-        No scheduled summaries yet. Generate one on demand below, or wait for the next automatic daily/weekly run.
+        {{ 'reports.noSummaries' | translate }}
       </p>
     </div>
 
     <!-- On-demand AI Summary Generation -->
-    <mat-card *ngIf="isManager" class="on-demand-card">
-      <mat-card-header>
-        <mat-card-title>Generate AI Summary</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="filter-row">
-          <mat-form-field appearance="outline">
-            <mat-label>Start Date</mat-label>
-            <input matInput [matDatepicker]="aiFromPicker" [(ngModel)]="aiDateFrom" />
-            <mat-datepicker-toggle matIconSuffix [for]="aiFromPicker"></mat-datepicker-toggle>
-            <mat-datepicker #aiFromPicker></mat-datepicker>
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>End Date</mat-label>
-            <input matInput [matDatepicker]="aiToPicker" [(ngModel)]="aiDateTo" />
-            <mat-datepicker-toggle matIconSuffix [for]="aiToPicker"></mat-datepicker-toggle>
-            <mat-datepicker #aiToPicker></mat-datepicker>
-          </mat-form-field>
-          <button mat-raised-button color="accent"
-                  (click)="generateAISummary()"
-                  [disabled]="!aiDateFrom || !aiDateTo || generating">
-            <mat-icon>auto_awesome</mat-icon>
-            {{ generating ? 'Generating...' : 'Generate AI Summary' }}
-          </button>
-        </div>
-      </mat-card-content>
-    </mat-card>
+    <div *ngIf="isManager" class="flat-card on-demand-section">
+      <h3 class="section-title">{{ 'reports.generateAiSummary' | translate }}</h3>
+      <div class="filter-row">
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'reports.startDate' | translate }}</mat-label>
+          <input matInput [matDatepicker]="aiFromPicker" [(ngModel)]="aiDateFrom" />
+          <mat-datepicker-toggle matIconSuffix [for]="aiFromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #aiFromPicker></mat-datepicker>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'reports.endDate' | translate }}</mat-label>
+          <input matInput [matDatepicker]="aiToPicker" [(ngModel)]="aiDateTo" />
+          <mat-datepicker-toggle matIconSuffix [for]="aiToPicker"></mat-datepicker-toggle>
+          <mat-datepicker #aiToPicker></mat-datepicker>
+        </mat-form-field>
+        <button class="flat-btn-primary"
+                (click)="generateAISummary()"
+                [disabled]="!aiDateFrom || !aiDateTo || generating">
+          <mat-icon>auto_awesome</mat-icon>
+          {{ generating ? ('reports.generating' | translate) : ('reports.generateAiSummary' | translate) }}
+        </button>
+      </div>
+    </div>
 
     <!-- Existing Reports Section -->
-    <mat-card class="filter-card">
-      <mat-card-content>
-        <div class="filter-row">
-          <mat-form-field appearance="outline">
-            <mat-label>Date From</mat-label>
-            <input matInput [matDatepicker]="fromPicker" [(ngModel)]="dateFrom" />
-            <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
-            <mat-datepicker #fromPicker></mat-datepicker>
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Date To</mat-label>
-            <input matInput [matDatepicker]="toPicker" [(ngModel)]="dateTo" />
-            <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
-            <mat-datepicker #toPicker></mat-datepicker>
-          </mat-form-field>
-          <button mat-raised-button color="primary" (click)="loadReport()">Generate</button>
-          <button mat-button *ngIf="isManager" (click)="exportPDF()"><mat-icon>picture_as_pdf</mat-icon> PDF</button>
-          <button mat-button *ngIf="isManager" (click)="exportExcel()"><mat-icon>table_chart</mat-icon> Excel</button>
-        </div>
-      </mat-card-content>
-    </mat-card>
+    <div class="flat-card report-section">
+      <h3 class="section-title">{{ 'reports.title' | translate }}</h3>
+      <div class="filter-row">
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'reports.dateFrom' | translate }}</mat-label>
+          <input matInput [matDatepicker]="fromPicker" [(ngModel)]="dateFrom" />
+          <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>{{ 'reports.dateTo' | translate }}</mat-label>
+          <input matInput [matDatepicker]="toPicker" [(ngModel)]="dateTo" />
+          <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
+        </mat-form-field>
+        <button class="flat-btn-primary" (click)="loadReport()">{{ 'reports.generate' | translate }}</button>
+        <button *ngIf="isManager" class="flat-btn-outline export-pdf" (click)="exportPDF()">
+          <mat-icon>picture_as_pdf</mat-icon> {{ 'reports.pdf' | translate }}
+        </button>
+        <button *ngIf="isManager" class="flat-btn-outline export-excel" (click)="exportExcel()">
+          <mat-icon>table_chart</mat-icon> {{ 'reports.excel' | translate }}
+        </button>
+      </div>
+    </div>
 
     <div *ngIf="reportData" class="report-content">
-      <div class="summary-grid">
-        <mat-card><mat-card-content><div class="stat">{{ reportData.tasks.total }}</div><div>Total</div></mat-card-content></mat-card>
-        <mat-card><mat-card-content><div class="stat">{{ reportData.tasks.created_in_period }}</div><div>Created</div></mat-card-content></mat-card>
-        <mat-card><mat-card-content><div class="stat">{{ reportData.tasks.closed_in_period }}</div><div>Closed</div></mat-card-content></mat-card>
-        <mat-card><mat-card-content><div class="stat">{{ reportData.tasks.overdue }}</div><div>Overdue</div></mat-card-content></mat-card>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{ reportData.tasks.total }}</div>
+          <div class="stat-label">{{ 'reports.total' | translate }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ reportData.tasks.created_in_period }}</div>
+          <div class="stat-label">{{ 'reports.created' | translate }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ reportData.tasks.closed_in_period }}</div>
+          <div class="stat-label">{{ 'reports.closed' | translate }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ reportData.tasks.overdue }}</div>
+          <div class="stat-label">{{ 'reports.overdue' | translate }}</div>
+        </div>
       </div>
     </div>
   `,
   styles: [`
-    .filter-card { margin-bottom: 24px; }
-    .filter-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-    .stat { font-size: 32px; font-weight: bold; text-align: center; }
-    .report-content { margin-top: 24px; }
-    .ai-summary-section { margin-bottom: 32px; }
-    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .section-header h3 { margin: 0; }
-    .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; margin-bottom: 12px; }
-    .clickable-card { cursor: pointer; transition: box-shadow 0.2s; }
-    .clickable-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
-    .summary-preview { white-space: pre-line; line-height: 1.6; }
+    .page-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 24px;
+    }
+    .page-header h2 { font-size: 22px; font-weight: 700; margin: 0; }
+
+    .section-title { font-size: 16px; font-weight: 600; margin: 0 0 16px 0; }
+
+    .ai-summary-section { margin-bottom: 24px; }
+
+    .summary-cards {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 16px; margin-bottom: 12px;
+    }
+    .summary-card {
+      display: flex; background: #fff;
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: var(--border-radius-card, 12px);
+      cursor: pointer; transition: box-shadow 0.2s; overflow: hidden;
+    }
+    .summary-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+    .summary-card-accent {
+      width: 4px; background: #fbbf24; flex-shrink: 0;
+    }
+    .summary-card-body { padding: 20px; flex: 1; }
+    .summary-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .summary-period { font-size: 13px; color: var(--text-secondary, #6b7280); margin: 0 0 8px 0; }
+    .summary-preview { white-space: pre-line; line-height: 1.6; margin: 0 0 8px 0; font-size: 14px; }
     .no-summaries { color: #666; font-style: italic; }
-    .generated-at { color: #666; }
+    .generated-at { color: #9ca3af; font-size: 12px; }
+
     .method-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 500;
-      margin-left: 8px;
-      text-transform: uppercase;
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 11px; font-weight: 500; text-transform: uppercase;
     }
     .method-badge.ai { background: #e8f5e9; color: #2e7d32; }
     .method-badge.fallback { background: #fff3e0; color: #e65100; }
-    .on-demand-card { margin-bottom: 24px; }
+
+    .on-demand-section { margin-bottom: 24px; }
+    .report-section { margin-bottom: 24px; }
+
+    .filter-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+    .export-pdf { color: #dc2626; border-color: #fecaca; }
+    .export-pdf:hover { background: #fef2f2; }
+    .export-excel { color: #16a34a; border-color: #bbf7d0; }
+    .export-excel:hover { background: #f0fdf4; }
+
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+      margin-top: 24px;
+    }
+    .report-content { margin-top: 0; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -196,6 +233,7 @@ export class ReportsComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private snackBar: MatSnackBar,
     private router: Router,
+    public translate: TranslateService,
   ) {}
 
   ngOnInit(): void {
@@ -229,14 +267,14 @@ export class ReportsComponent implements OnInit, OnDestroy {
     this.summaryService.generate(start, end).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result) => {
         this.generating = false;
-        this.snackBar.open('Summary generation started', 'View', { duration: 5000 }).onAction().subscribe(() => {
+        this.snackBar.open(this.translate.instant('reports.summaryStarted'), this.translate.instant('common.view'), { duration: 5000 }).onAction().subscribe(() => {
           this.router.navigate(['/reports/summaries', result.id]);
         });
         this.cdr.markForCheck();
       },
       error: () => {
         this.generating = false;
-        this.snackBar.open('Failed to start generation', 'Dismiss', { duration: 3000 });
+        this.snackBar.open(this.translate.instant('reports.failedGeneration'), this.translate.instant('common.dismiss'), { duration: 3000 });
         this.cdr.markForCheck();
       },
     });

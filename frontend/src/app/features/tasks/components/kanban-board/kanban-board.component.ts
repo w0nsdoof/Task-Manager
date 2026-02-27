@@ -8,10 +8,11 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterModule } from '@angular/router';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
 import { TaskService, TaskListItem, TaskFilters } from '../../../../core/services/task.service';
 import { WebSocketService } from '../../../../core/services/websocket.service';
-import { STATUS_LABELS, VALID_TRANSITIONS } from '../../../../core/constants/task-status';
+import { STATUS_TRANSLATION_KEYS, VALID_TRANSITIONS } from '../../../../core/constants/task-status';
 import { SearchBarComponent } from '../../../../shared/components/search-bar/search-bar.component';
 import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.component';
 
@@ -19,15 +20,28 @@ interface KanbanColumn {
   status: string;
   label: string;
   tasks: TaskListItem[];
+  color: string;
 }
 
 @Component({
   selector: 'app-kanban-board',
   standalone: true,
-  imports: [CommonModule, DragDropModule, MatCardModule, MatChipsModule, MatIconModule, MatSnackBarModule, MatMenuModule, MatButtonModule, RouterModule, SearchBarComponent, FilterPanelComponent],
+  imports: [CommonModule, DragDropModule, MatCardModule, MatChipsModule, MatIconModule, MatSnackBarModule, MatMenuModule, MatButtonModule, RouterModule, SearchBarComponent, FilterPanelComponent, TranslateModule],
   template: `
-    <h2>Kanban Board</h2>
-    <app-search-bar placeholder="Search tasks..." (search)="onSearch($event)"></app-search-bar>
+    <div class="page-header">
+      <h2>{{ 'kanban.title' | translate }}</h2>
+      <div class="view-toggle">
+        <button class="toggle-btn" routerLink="/tasks">
+          <mat-icon>table_chart</mat-icon>
+          {{ 'tasks.list' | translate }}
+        </button>
+        <button class="toggle-btn active">
+          <mat-icon>view_kanban</mat-icon>
+          {{ 'tasks.kanban' | translate }}
+        </button>
+      </div>
+    </div>
+    <app-search-bar [placeholder]="'tasks.searchTasks' | translate" (search)="onSearch($event)"></app-search-bar>
     <app-filter-panel [showStatus]="false" [showClient]="false" (filtersChange)="onFiltersChange($event)"></app-filter-panel>
     <div class="kanban-container">
       <div class="kanban-column" *ngFor="let col of columns"
@@ -35,73 +49,139 @@ interface KanbanColumn {
            [id]="col.status"
            [cdkDropListConnectedTo]="columnIds"
            (cdkDropListDropped)="onDrop($event, col)">
-        <h3 class="column-header">{{ col.label }} ({{ col.tasks.length }})</h3>
-        <mat-card *ngFor="let task of col.tasks" cdkDrag class="kanban-card" [class]="'priority-' + task.priority">
-          <mat-card-header>
-            <mat-card-title>
-              <a [routerLink]="['/tasks', task.id]">{{ task.title }}</a>
-            </mat-card-title>
-            <button mat-icon-button [matMenuTriggerFor]="cardStatusMenu"
+        <div class="column-header" [style.border-top-color]="col.color">
+          <span class="column-title">{{ translate.instant(col.label) }}</span>
+          <span class="column-count">{{ col.tasks.length }}</span>
+        </div>
+        <div class="kanban-card" *ngFor="let task of col.tasks" cdkDrag>
+          <div class="card-top">
+            <a [routerLink]="['/tasks', task.id]" class="card-title">{{ task.title }}</a>
+            <button class="card-menu-btn" [matMenuTriggerFor]="cardStatusMenu"
                     *ngIf="getNextStatuses(task.status).length"
-                    (click)="$event.stopPropagation()"
-                    class="card-menu-btn" cdkDragHandle>
+                    (click)="$event.stopPropagation()" cdkDragHandle>
               <mat-icon>more_vert</mat-icon>
             </button>
             <mat-menu #cardStatusMenu="matMenu">
-              <div class="menu-header" mat-menu-item disabled>Move to</div>
+              <div class="menu-header" mat-menu-item disabled>{{ 'kanban.moveTo' | translate }}</div>
               <button mat-menu-item *ngFor="let s of getNextStatuses(task.status)"
                       (click)="onMenuChangeStatus(task, col, s)">
                 {{ statusLabel(s) }}
               </button>
             </mat-menu>
-          </mat-card-header>
-          <mat-card-content>
-            <mat-chip [class]="'priority-' + task.priority">{{ task.priority }}</mat-chip>
-            <div class="card-tags" *ngIf="task.tags.length">
-              <span *ngFor="let t of task.tags" class="card-tag"
-                    [style.background-color]="t.color"
-                    [style.color]="isLightColor(t.color) ? '#000' : '#fff'">
-                {{ t.name }}
-              </span>
-            </div>
-            <div class="assignees" *ngIf="task.assignees.length">
-              <span *ngFor="let a of task.assignees; let last = last">
-                {{ a.first_name }} {{ a.last_name }}<span *ngIf="!last">, </span>
-              </span>
-            </div>
-            <div class="deadline" *ngIf="task.deadline">
+          </div>
+          <div class="card-client" *ngIf="task.client">{{ task.client.name }}</div>
+          <div class="card-tags" *ngIf="task.tags.length">
+            <span *ngFor="let t of task.tags" class="card-tag"
+                  [style.border-color]="t.color"
+                  [style.color]="t.color">
+              {{ t.name }}
+            </span>
+          </div>
+          <div class="card-assignee" *ngIf="task.assignees.length">
+            <mat-icon class="card-icon">person</mat-icon>
+            <span *ngFor="let a of task.assignees; let last = last">
+              {{ a.first_name }} {{ a.last_name }}<span *ngIf="!last">, </span>
+            </span>
+          </div>
+          <div class="card-footer">
+            <span class="card-deadline" *ngIf="task.deadline">
+              <mat-icon class="card-icon">calendar_today</mat-icon>
               {{ task.deadline | date:'shortDate' }}
-            </div>
-          </mat-card-content>
-        </mat-card>
+            </span>
+            <mat-chip [class]="'priority-' + task.priority" class="priority-badge">
+              {{ 'priorities.' + task.priority | translate }}
+            </mat-chip>
+          </div>
+        </div>
       </div>
     </div>
   `,
   styles: [`
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .page-header h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0;
+    }
     .kanban-container { display: flex; gap: 16px; overflow-x: auto; min-height: 70vh; }
-    .kanban-column { flex: 1; min-width: 250px; background: #f5f5f5; border-radius: 8px; padding: 12px; }
-    .column-header { text-align: center; margin-bottom: 12px; }
-    .kanban-card { margin-bottom: 8px; cursor: grab; }
-    .kanban-card a { text-decoration: none; color: inherit; }
-    .kanban-card mat-card-header { display: flex; align-items: center; }
-    .kanban-card mat-card-header mat-card-title { flex: 1; }
-    .card-menu-btn { flex-shrink: 0; margin: -8px -8px -8px 0; }
+    .kanban-column {
+      flex: 1; min-width: 280px;
+      background: #fff;
+      border-radius: var(--border-radius-card, 12px);
+      padding: 0;
+      border: 1px solid var(--border-color, #e5e7eb);
+      display: flex;
+      flex-direction: column;
+    }
+    .column-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 16px;
+      border-top: 3px solid #ccc;
+      border-radius: var(--border-radius-card, 12px) var(--border-radius-card, 12px) 0 0;
+      font-weight: 600; font-size: 14px;
+    }
+    .column-count {
+      background: #f3f4f6; border-radius: 12px;
+      padding: 2px 10px; font-size: 13px; color: var(--text-secondary, #6b7280);
+    }
+    .kanban-card {
+      margin: 0 12px 12px 12px; padding: 16px;
+      background: #fff; border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 10px; cursor: grab;
+      transition: box-shadow 0.15s;
+    }
+    .kanban-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .card-top { display: flex; align-items: flex-start; gap: 8px; }
+    .card-title {
+      flex: 1; text-decoration: none; color: var(--text-primary, #1a1a1a);
+      font-weight: 500; font-size: 14px; line-height: 1.4;
+    }
+    .card-title:hover { color: var(--primary-blue, #1a7cf4); }
+    .card-menu-btn {
+      flex-shrink: 0; background: none; border: none; cursor: pointer;
+      padding: 2px; color: #9ca3af; border-radius: 4px;
+    }
+    .card-menu-btn:hover { background: #f3f4f6; }
     .menu-header { font-size: 12px; opacity: 0.6; }
+    .card-client {
+      font-size: 13px; color: var(--primary-blue, #1a7cf4);
+      margin-top: 8px; font-weight: 500;
+    }
     .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-    .card-tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; white-space: nowrap; }
-    .assignees { font-size: 12px; margin-top: 8px; color: #616161; }
-    .deadline { font-size: 12px; margin-top: 4px; color: #9e9e9e; }
-    .cdk-drag-preview { box-shadow: 0 5px 5px -3px rgba(0,0,0,.2); }
+    .card-tag {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px;
+      white-space: nowrap; border: 1px solid; background: transparent;
+    }
+    .card-assignee {
+      font-size: 12px; margin-top: 10px; color: var(--text-secondary, #6b7280);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .card-icon { font-size: 16px; width: 16px; height: 16px; color: #9ca3af; }
+    .card-footer {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 10px;
+    }
+    .card-deadline {
+      font-size: 12px; color: #9ca3af;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .priority-badge { font-size: 11px; }
+    .cdk-drag-preview { box-shadow: 0 5px 20px rgba(0,0,0,.15); border-radius: 10px; }
     .cdk-drag-placeholder { opacity: 0; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class KanbanBoardComponent implements OnInit, OnDestroy {
   columns: KanbanColumn[] = [
-    { status: 'created', label: 'Created', tasks: [] },
-    { status: 'in_progress', label: 'In Progress', tasks: [] },
-    { status: 'waiting', label: 'Waiting', tasks: [] },
-    { status: 'done', label: 'Done', tasks: [] },
+    { status: 'created', label: 'statuses.created', tasks: [], color: '#9ca3af' },
+    { status: 'in_progress', label: 'statuses.in_progress', tasks: [], color: '#f59e0b' },
+    { status: 'waiting', label: 'statuses.waiting', tasks: [], color: '#ef4444' },
+    { status: 'done', label: 'statuses.done', tasks: [], color: '#22c55e' },
   ];
 
   columnIds: string[] = [];
@@ -114,6 +194,7 @@ export class KanbanBoardComponent implements OnInit, OnDestroy {
     private wsService: WebSocketService,
     private snackBar: MatSnackBar,
     private cdr: ChangeDetectorRef,
+    public translate: TranslateService,
   ) {
     this.columnIds = this.columns.map((c) => c.status);
   }
@@ -161,7 +242,7 @@ export class KanbanBoardComponent implements OnInit, OnDestroy {
   }
 
   statusLabel(status: string): string {
-    return STATUS_LABELS[status] || status;
+    return this.translate.instant(STATUS_TRANSLATION_KEYS[status] || status);
   }
 
   getNextStatuses(currentStatus: string): string[] {
@@ -187,8 +268,8 @@ export class KanbanBoardComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        const msg = err.error?.detail || 'Invalid transition';
-        this.snackBar.open(msg, 'Close', { duration: 3000 });
+        const msg = err.error?.detail || this.translate.instant('kanban.invalidTransition');
+        this.snackBar.open(msg, this.translate.instant('common.close'), { duration: 3000 });
       },
     });
   }
@@ -204,8 +285,8 @@ export class KanbanBoardComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
       error: (err) => {
-        const msg = err.error?.detail || 'Invalid transition';
-        this.snackBar.open(msg, 'Close', { duration: 3000 });
+        const msg = err.error?.detail || this.translate.instant('kanban.invalidTransition');
+        this.snackBar.open(msg, this.translate.instant('common.close'), { duration: 3000 });
         this.cdr.markForCheck();
       },
     });
