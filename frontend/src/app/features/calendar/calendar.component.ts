@@ -14,40 +14,89 @@ import { TaskService, TaskListItem } from '../../core/services/task.service';
   standalone: true,
   imports: [CommonModule, RouterModule, MatCardModule, MatListModule, MatButtonModule, MatIconModule, TranslateModule],
   template: `
-    <h2>{{ 'calendar.title' | translate }}</h2>
-    <div class="calendar-controls">
-      <button mat-icon-button (click)="prevMonth()"><mat-icon>chevron_left</mat-icon></button>
-      <h3>{{ currentMonth | date:'MMMM yyyy' }}</h3>
-      <button mat-icon-button (click)="nextMonth()"><mat-icon>chevron_right</mat-icon></button>
+    <div class="page-header">
+      <h2>{{ 'calendar.title' | translate }}</h2>
     </div>
-    <div class="calendar-grid">
-      <div *ngFor="let day of calendarDays" class="calendar-day" [class.other-month]="!day.isCurrentMonth" [class.today]="day.isToday">
-        <div class="day-number">{{ day.date | date:'d' }}</div>
-        <div *ngFor="let task of day.tasks" class="task-chip" [class]="'priority-' + task.priority">
-          <a [routerLink]="['/tasks', task.id]">{{ task.title | slice:0:20 }}</a>
+    <div class="calendar-card flat-card">
+      <div class="calendar-controls">
+        <button class="nav-btn" (click)="prevMonth()"><mat-icon>chevron_left</mat-icon></button>
+        <h3 class="month-title">{{ currentMonth | date:'MMMM yyyy' }}</h3>
+        <button class="nav-btn" (click)="nextMonth()"><mat-icon>chevron_right</mat-icon></button>
+      </div>
+      <div class="weekday-header">
+        <div class="weekday" *ngFor="let day of weekDays">{{ day }}</div>
+      </div>
+      <div class="calendar-grid">
+        <div *ngFor="let day of calendarDays" class="calendar-day"
+             [class.other-month]="!day.isCurrentMonth"
+             [class.today]="day.isToday">
+          <div class="day-number">{{ day.date | date:'d' }}</div>
+          <div *ngFor="let task of day.tasks" class="task-chip" [class]="'priority-border-' + task.priority">
+            <a [routerLink]="['/tasks', task.id]">{{ task.title | slice:0:20 }}</a>
+          </div>
         </div>
       </div>
     </div>
   `,
   styles: [`
-    .calendar-controls { display: flex; align-items: center; gap: 16px; justify-content: center; }
-    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-    .calendar-day { min-height: 100px; border: 1px solid #e0e0e0; padding: 4px; }
-    .day-number { font-weight: bold; margin-bottom: 4px; }
-    .other-month { opacity: 0.4; }
-    .today { background-color: #e3f2fd; }
-    .task-chip { font-size: 11px; background: #f5f5f5; padding: 2px 4px; margin-bottom: 2px; border-radius: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .task-chip a { text-decoration: none; color: inherit; }
-    .priority-critical { border-left: 3px solid #f44336; }
-    .priority-high { border-left: 3px solid #ff9800; }
-    .priority-medium { border-left: 3px solid #2196f3; }
-    .priority-low { border-left: 3px solid #4caf50; }
+    .page-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 24px;
+    }
+    .page-header h2 { font-size: 22px; font-weight: 700; margin: 0; }
+
+    .calendar-card { padding: 24px; }
+
+    .calendar-controls {
+      display: flex; align-items: center; gap: 16px; justify-content: center;
+      margin-bottom: 20px;
+    }
+    .nav-btn {
+      background: none; border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 8px; cursor: pointer; padding: 4px 8px;
+      display: flex; align-items: center; color: var(--text-secondary, #6b7280);
+    }
+    .nav-btn:hover { background: #f9fafb; }
+    .month-title { margin: 0; font-size: 18px; font-weight: 600; min-width: 200px; text-align: center; }
+
+    .weekday-header {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      border-bottom: 1px solid var(--border-color, #e5e7eb);
+      margin-bottom: 2px;
+    }
+    .weekday {
+      text-align: center; font-size: 13px; font-weight: 600;
+      color: var(--text-secondary, #6b7280); padding: 8px 0;
+    }
+
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
+    .calendar-day {
+      min-height: 100px; border: 1px solid var(--border-color, #e5e7eb);
+      padding: 6px; border-radius: 4px;
+    }
+    .day-number { font-weight: 600; margin-bottom: 4px; font-size: 14px; }
+    .other-month { opacity: 0.35; }
+    .today { background-color: #eff6ff; }
+    .today .day-number { color: var(--primary-blue, #1a7cf4); }
+
+    .task-chip {
+      font-size: 11px; background: #f8fafc; padding: 3px 6px;
+      margin-bottom: 2px; border-radius: 4px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+    .task-chip a { text-decoration: none; color: var(--text-primary, #1a1a1a); }
+    .task-chip a:hover { color: var(--primary-blue, #1a7cf4); }
+    .priority-border-critical { border-left: 3px solid #f44336; }
+    .priority-border-high { border-left: 3px solid #ff9800; }
+    .priority-border-medium { border-left: 3px solid #2196f3; }
+    .priority-border-low { border-left: 3px solid #4caf50; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CalendarComponent implements OnInit, OnDestroy {
   currentMonth = new Date();
   calendarDays: { date: Date; isCurrentMonth: boolean; isToday: boolean; tasks: TaskListItem[] }[] = [];
+  weekDays = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
   private destroy$ = new Subject<void>();
 
   constructor(private taskService: TaskService, private cdr: ChangeDetectorRef) {}
@@ -70,9 +119,14 @@ export class CalendarComponent implements OnInit, OnDestroy {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - startDate.getDay());
+    // Adjust to start on Monday
+    const dayOfWeek = startDate.getDay();
+    const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startDate.setDate(startDate.getDate() - diff);
     const endDate = new Date(lastDay);
-    endDate.setDate(endDate.getDate() + (6 - endDate.getDay()));
+    const endDayOfWeek = endDate.getDay();
+    const endDiff = endDayOfWeek === 0 ? 0 : 7 - endDayOfWeek;
+    endDate.setDate(endDate.getDate() + endDiff);
     const today = new Date();
 
     this.calendarDays = [];

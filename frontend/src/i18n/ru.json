@@ -24,28 +24,38 @@
     "slug": "Slug",
     "status": "Статус",
     "back": "Назад",
-    "loading": "Загрузка..."
+    "loading": "Загрузка...",
+    "showing": "Показано",
+    "of": "из",
+    "sortBy": "Сортировать по"
   },
   "auth": {
     "title": "Система управления задачами",
     "subtitle": "Войдите в свой аккаунт",
+    "welcome": "Добро пожаловать!",
     "email": "Эл. почта",
+    "emailOrPhone": "E-mail или номер телефона",
     "password": "Пароль",
     "signIn": "Войти",
     "emailRequired": "Введите эл. почту",
     "invalidEmail": "Некорректная эл. почта",
     "passwordRequired": "Введите пароль",
-    "loginFailed": "Ошибка входа. Попробуйте снова."
+    "loginFailed": "Ошибка входа. Попробуйте снова.",
+    "forgotPassword": "Забыли пароль?"
   },
   "nav": {
     "taskManager": "Менеджер задач",
+    "webAdmin": "Web admin",
     "organizations": "Организации",
     "tasks": "Задачи",
+    "table": "Таблица",
     "archive": "Архив",
     "kanban": "Канбан",
     "clients": "Клиенты",
+    "companies": "Компании",
     "calendar": "Календарь",
     "reports": "Отчёты",
+    "analytics": "Аналитика",
     "users": "Пользователи",
     "tags": "Теги",
     "myTickets": "Мои заявки",
@@ -56,10 +66,15 @@
   },
   "tasks": {
     "title": "Задачи",
+    "allRequests": "Все заявки",
+    "list": "Список",
+    "kanban": "Канбан",
+    "add": "Добавить",
     "newTask": "Новая задача",
     "editTask": "Редактировать задачу",
     "createTask": "Создать задачу",
     "taskTitle": "Название",
+    "taskTopic": "Тема задачи",
     "description": "Описание",
     "priority": "Приоритет",
     "deadline": "Срок",
@@ -69,6 +84,7 @@
     "tags": "Теги",
     "noTags": "Нет тегов",
     "createdBy": "Автор",
+    "createdAt": "Дата создания",
     "attachments": "Вложения",
     "uploadFile": "Загрузить файл",
     "noAttachments": "Нет вложений",
@@ -112,6 +128,9 @@
     "tasksCount": "Задачи",
     "taskSummary": "Сводка задач",
     "total": "Всего"
+  },
+  "companies": {
+    "allCompanies": "Все компании"
   },
   "calendar": {
     "title": "Календарь"
@@ -179,6 +198,12 @@
     "engineer": "Инженер",
     "client": "Клиент",
     "searchUsers": "Поиск пользователей..."
+  },
+  "users": {
+    "allUsers": "Список пользователей",
+    "addUser": "Добавить пользователя",
+    "fullName": "ФИО",
+    "phoneNumber": "Номер телефона"
   },
   "tagAdmin": {
     "title": "Теги",

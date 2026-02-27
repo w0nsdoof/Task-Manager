@@ -24,28 +24,38 @@
     "slug": "Slug",
     "status": "Status",
     "back": "Back",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "showing": "Showing",
+    "of": "of",
+    "sortBy": "Sort by"
   },
   "auth": {
     "title": "Task Management System",
     "subtitle": "Sign in to your account",
+    "welcome": "Welcome!",
     "email": "Email",
+    "emailOrPhone": "Email or phone number",
     "password": "Password",
     "signIn": "Sign In",
     "emailRequired": "Email is required",
     "invalidEmail": "Invalid email",
     "passwordRequired": "Password is required",
-    "loginFailed": "Login failed. Please try again."
+    "loginFailed": "Login failed. Please try again.",
+    "forgotPassword": "Forgot password?"
   },
   "nav": {
     "taskManager": "Task Manager",
+    "webAdmin": "Web admin",
     "organizations": "Organizations",
     "tasks": "Tasks",
+    "table": "Table",
     "archive": "Archive",
     "kanban": "Kanban",
     "clients": "Clients",
+    "companies": "Companies",
     "calendar": "Calendar",
     "reports": "Reports",
+    "analytics": "Analytics",
     "users": "Users",
     "tags": "Tags",
     "myTickets": "My Tickets",
@@ -56,10 +66,15 @@
   },
   "tasks": {
     "title": "Tasks",
+    "allRequests": "All Requests",
+    "list": "List",
+    "kanban": "Kanban",
+    "add": "Add",
     "newTask": "New Task",
     "editTask": "Edit Task",
     "createTask": "Create Task",
     "taskTitle": "Title",
+    "taskTopic": "Task topic",
     "description": "Description",
     "priority": "Priority",
     "deadline": "Deadline",
@@ -69,6 +84,7 @@
     "tags": "Tags",
     "noTags": "No tags",
     "createdBy": "Created by",
+    "createdAt": "Created at",
     "attachments": "Attachments",
     "uploadFile": "Upload File",
     "noAttachments": "No attachments",
@@ -113,8 +129,11 @@
     "taskSummary": "Task Summary",
     "total": "Total"
   },
+  "companies": {
+    "allCompanies": "All Companies"
+  },
   "calendar": {
-    "title": "Calendar View"
+    "title": "Calendar"
   },
   "reports": {
     "title": "Reports",
@@ -179,6 +198,12 @@
     "engineer": "Engineer",
     "client": "Client",
     "searchUsers": "Search users..."
+  },
+  "users": {
+    "allUsers": "Users",
+    "addUser": "Add User",
+    "fullName": "Full Name",
+    "phoneNumber": "Phone Number"
   },
   "tagAdmin": {
     "title": "Tags",

@@ -36,85 +36,101 @@ interface UserOption {
     MatButtonModule, MatChipsModule, MatIconModule, MatCardModule, TranslateModule,
   ],
   template: `
-    <mat-card>
-      <mat-card-header>
-        <mat-card-title>{{ (isEdit ? 'tasks.editTask' : 'tasks.createTask') | translate }}</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
+    <div class="form-page">
+      <div class="page-header">
+        <h2>{{ (isEdit ? 'tasks.editTask' : 'tasks.createTask') | translate }}</h2>
+      </div>
+      <div class="form-card flat-card">
         <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'tasks.taskTitle' | translate }}</mat-label>
-            <input matInput formControlName="title" />
-          </mat-form-field>
+          <div class="form-group">
+            <label class="flat-input-label">{{ 'tasks.taskTitle' | translate }}</label>
+            <input class="flat-input" formControlName="title" />
+          </div>
 
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'tasks.description' | translate }}</mat-label>
-            <textarea matInput formControlName="description" rows="5"></textarea>
-          </mat-form-field>
+          <div class="form-group">
+            <label class="flat-input-label">{{ 'tasks.description' | translate }}</label>
+            <textarea class="flat-input textarea" formControlName="description" rows="5"></textarea>
+          </div>
 
-          <div class="row">
-            <mat-form-field appearance="outline">
-              <mat-label>{{ 'tasks.priority' | translate }}</mat-label>
-              <mat-select formControlName="priority">
-                <mat-option value="low">{{ 'priorities.low' | translate }}</mat-option>
-                <mat-option value="medium">{{ 'priorities.medium' | translate }}</mat-option>
-                <mat-option value="high">{{ 'priorities.high' | translate }}</mat-option>
-                <mat-option value="critical">{{ 'priorities.critical' | translate }}</mat-option>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="flat-input-label">{{ 'tasks.priority' | translate }}</label>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-select formControlName="priority">
+                  <mat-option value="low">{{ 'priorities.low' | translate }}</mat-option>
+                  <mat-option value="medium">{{ 'priorities.medium' | translate }}</mat-option>
+                  <mat-option value="high">{{ 'priorities.high' | translate }}</mat-option>
+                  <mat-option value="critical">{{ 'priorities.critical' | translate }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+            </div>
+
+            <div class="form-group">
+              <label class="flat-input-label">{{ 'tasks.deadline' | translate }}</label>
+              <mat-form-field appearance="outline" class="full-width">
+                <input matInput [matDatepicker]="picker" formControlName="deadline" />
+                <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+                <mat-datepicker #picker></mat-datepicker>
+              </mat-form-field>
+            </div>
+          </div>
+
+          <div class="form-group" *ngIf="isManager">
+            <label class="flat-input-label">{{ 'tasks.assignees' | translate }}</label>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-select formControlName="assignee_ids" multiple (openedChange)="onAssigneeDropdownToggle($event)">
+                <div class="select-search">
+                  <input class="select-search-input" [placeholder]="'tasks.searchEngineers' | translate"
+                         (keydown)="$event.stopPropagation()"
+                         (input)="filterEngineers($any($event.target).value)" />
+                </div>
+                <mat-option *ngFor="let u of filteredEngineers" [value]="u.id">
+                  {{ u.first_name }} {{ u.last_name }}
+                </mat-option>
               </mat-select>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline">
-              <mat-label>{{ 'tasks.deadline' | translate }}</mat-label>
-              <input matInput [matDatepicker]="picker" formControlName="deadline" />
-              <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-              <mat-datepicker #picker></mat-datepicker>
             </mat-form-field>
           </div>
 
-          <mat-form-field *ngIf="isManager" appearance="outline" class="full-width">
-            <mat-label>{{ 'tasks.assignees' | translate }}</mat-label>
-            <mat-select formControlName="assignee_ids" multiple (openedChange)="onAssigneeDropdownToggle($event)">
-              <div class="select-search">
-                <input class="select-search-input" [placeholder]="'tasks.searchEngineers' | translate"
-                       (keydown)="$event.stopPropagation()"
-                       (input)="filterEngineers($any($event.target).value)" />
-              </div>
-              <mat-option *ngFor="let u of filteredEngineers" [value]="u.id">
-                {{ u.first_name }} {{ u.last_name }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
+          <div class="form-group" *ngIf="isManager">
+            <label class="flat-input-label">{{ 'tasks.client' | translate }}</label>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-select formControlName="client_id">
+                <mat-option [value]="null">{{ 'common.none' | translate }}</mat-option>
+                <mat-option *ngFor="let c of clients" [value]="c.id">{{ c.name }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
 
-          <mat-form-field *ngIf="isManager" appearance="outline" class="full-width">
-            <mat-label>{{ 'tasks.client' | translate }}</mat-label>
-            <mat-select formControlName="client_id">
-              <mat-option [value]="null">{{ 'common.none' | translate }}</mat-option>
-              <mat-option *ngFor="let c of clients" [value]="c.id">{{ c.name }}</mat-option>
-            </mat-select>
-          </mat-form-field>
+          <div class="form-group">
+            <label class="flat-input-label">{{ 'tasks.tags' | translate }}</label>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-select formControlName="tag_ids" multiple>
+                <mat-option *ngFor="let t of tags" [value]="t.id">{{ t.name }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
 
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'tasks.tags' | translate }}</mat-label>
-            <mat-select formControlName="tag_ids" multiple>
-              <mat-option *ngFor="let t of tags" [value]="t.id">{{ t.name }}</mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <div class="actions">
-            <button mat-button type="button" (click)="cancel()">{{ 'common.cancel' | translate }}</button>
-            <button mat-raised-button color="primary" type="submit" [disabled]="taskForm.invalid || saving">
+          <div class="form-actions">
+            <button type="button" class="flat-btn-outline" (click)="cancel()">{{ 'common.cancel' | translate }}</button>
+            <button class="flat-btn-primary" type="submit" [disabled]="taskForm.invalid || saving">
               {{ (isEdit ? 'common.update' : 'common.create') | translate }}
             </button>
           </div>
         </form>
-      </mat-card-content>
-    </mat-card>
+      </div>
+    </div>
   `,
   styles: [`
+    .form-page { max-width: 720px; }
+    .page-header { margin-bottom: 24px; }
+    .page-header h2 { font-size: 22px; font-weight: 700; margin: 0; }
+    .form-card { padding: 32px; }
     .full-width { width: 100%; }
-    .row { display: flex; gap: 16px; }
-    .row mat-form-field { flex: 1; }
-    .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .form-group { margin-bottom: 20px; }
+    .textarea { resize: vertical; min-height: 100px; }
+    .form-row { display: flex; gap: 16px; }
+    .form-row .form-group { flex: 1; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }
     ::ng-deep .select-search {
       position: sticky; top: 0; z-index: 1;
       padding: 8px; background: white;
@@ -124,7 +140,7 @@ interface UserOption {
       width: 100%; padding: 8px; border: 1px solid #ccc;
       border-radius: 4px; font-size: 14px; outline: none; box-sizing: border-box;
     }
-    ::ng-deep .select-search-input:focus { border-color: #3f51b5; }
+    ::ng-deep .select-search-input:focus { border-color: var(--primary-blue, #1a7cf4); }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

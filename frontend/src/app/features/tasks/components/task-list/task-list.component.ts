@@ -25,21 +25,52 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
     SearchBarComponent, FilterPanelComponent, TranslateModule,
   ],
   template: `
-    <div class="task-list-header">
+    <div class="page-header">
       <h2>{{ 'tasks.title' | translate }}</h2>
-      <a mat-raised-button color="primary" routerLink="new" *ngIf="canCreate">
-        <mat-icon>add</mat-icon> {{ 'tasks.newTask' | translate }}
-      </a>
+      <div class="header-right">
+        <div class="view-toggle">
+          <button class="toggle-btn active">
+            <mat-icon>table_chart</mat-icon>
+            {{ 'tasks.list' | translate }}
+          </button>
+          <button class="toggle-btn" routerLink="/kanban">
+            <mat-icon>view_kanban</mat-icon>
+            {{ 'tasks.kanban' | translate }}
+          </button>
+        </div>
+        <button class="flat-btn-primary" routerLink="new" *ngIf="canCreate">
+          <mat-icon>add</mat-icon> {{ 'tasks.add' | translate }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Status tabs -->
+    <div class="status-tabs">
+      <button class="status-tab" [class.active]="!statusFilter" (click)="onStatusFilter(undefined)">
+        {{ 'common.all' | translate }}
+      </button>
+      <button class="status-tab" [class.active]="statusFilter === 'created'" (click)="onStatusFilter('created')">
+        {{ 'statuses.created' | translate }}
+      </button>
+      <button class="status-tab" [class.active]="statusFilter === 'in_progress'" (click)="onStatusFilter('in_progress')">
+        {{ 'statuses.in_progress' | translate }}
+      </button>
+      <button class="status-tab" [class.active]="statusFilter === 'waiting'" (click)="onStatusFilter('waiting')">
+        {{ 'statuses.waiting' | translate }}
+      </button>
+      <button class="status-tab" [class.active]="statusFilter === 'done'" (click)="onStatusFilter('done')">
+        {{ 'statuses.done' | translate }}
+      </button>
     </div>
 
     <app-search-bar [placeholder]="'tasks.searchTasks' | translate" (search)="onSearch($event)"></app-search-bar>
-    <app-filter-panel (filtersChange)="onFiltersChange($event)"></app-filter-panel>
+    <app-filter-panel [showStatus]="false" (filtersChange)="onFiltersChange($event)"></app-filter-panel>
 
     <table mat-table [dataSource]="tasks" class="full-width">
       <ng-container matColumnDef="title">
         <th mat-header-cell *matHeaderCellDef>{{ 'tasks.taskTitle' | translate }}</th>
         <td mat-cell *matCellDef="let task">
-          <a [routerLink]="[task.id]">{{ task.title }}</a>
+          <a [routerLink]="[task.id]" class="task-link">{{ task.title }}</a>
         </td>
       </ng-container>
 
@@ -70,9 +101,12 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
       <ng-container matColumnDef="assignees">
         <th mat-header-cell *matHeaderCellDef>{{ 'tasks.assignees' | translate }}</th>
         <td mat-cell *matCellDef="let task">
-          <span *ngFor="let a of task.assignees; let last = last">
-            {{ a.first_name }} {{ a.last_name }}<span *ngIf="!last">, </span>
-          </span>
+          <div class="assignee-list">
+            <span *ngFor="let a of task.assignees; let last = last" class="assignee-name">
+              <span class="mini-avatar">{{ a.first_name?.charAt(0) || '' }}</span>
+              {{ a.first_name }} {{ a.last_name }}<span *ngIf="!last">, </span>
+            </span>
+          </div>
         </td>
       </ng-container>
 
@@ -118,12 +152,36 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
     </mat-paginator>
   `,
   styles: [`
-    .task-list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .page-header h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0;
+    }
+    .header-right {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
     .full-width { width: 100%; }
     table { margin-bottom: 16px; }
-    a { text-decoration: none; color: #1976d2; }
+    .task-link { text-decoration: none; color: var(--primary-blue, #1a7cf4); font-weight: 500; }
+    .task-link:hover { text-decoration: underline; }
     .tag-chip { font-size: 11px; min-height: 24px; padding: 2px 8px; }
     .deadline-overdue { color: #d32f2f; font-weight: 500; }
+    .assignee-list { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .assignee-name { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+    .mini-avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: #e5e7eb; color: #6b7280;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600; flex-shrink: 0;
+    }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -134,6 +192,7 @@ export class TaskListComponent implements OnInit, OnDestroy {
   pageSize = 20;
   isManager = false;
   canCreate = false;
+  statusFilter: string | undefined = undefined;
   displayedColumns = ['title', 'status', 'priority', 'assignees', 'client', 'tags', 'deadline'];
   private searchTerm = '';
   private activeFilters: FilterState = {};
@@ -162,11 +221,20 @@ export class TaskListComponent implements OnInit, OnDestroy {
     if (this.searchTerm) {
       filters.search = this.searchTerm;
     }
+    if (this.statusFilter) {
+      filters.status = this.statusFilter;
+    }
     this.taskService.list(filters).pipe(takeUntil(this.destroy$)).subscribe((res) => {
       this.tasks = res.results;
       this.totalCount = res.count;
       this.cdr.markForCheck();
     });
+  }
+
+  onStatusFilter(status: string | undefined): void {
+    this.statusFilter = status;
+    this.currentPage = 1;
+    this.loadTasks();
   }
 
   statusLabel(status: string): string {
