@@ -1,4 +1,5 @@
 from django.db.models import Count, Q
+from drf_spectacular.utils import extend_schema, extend_schema_field
 from rest_framework import generics, serializers
 
 from apps.accounts.permissions import IsClient
@@ -30,6 +31,7 @@ class PortalTicketDetailSerializer(serializers.ModelSerializer):
             "attachments",
         ]
 
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_comments(self, obj):
         comments = obj.comments.filter(is_public=True).select_related("author")
         return [
@@ -46,6 +48,7 @@ class PortalTicketDetailSerializer(serializers.ModelSerializer):
             for c in comments
         ]
 
+    @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_attachments(self, obj):
         attachments = obj.attachments.all()
         return [
@@ -61,6 +64,11 @@ class PortalTicketDetailSerializer(serializers.ModelSerializer):
         ]
 
 
+@extend_schema(
+    tags=["Portal"],
+    summary="List portal tickets",
+    description="Client-role only. Shows tickets for the user's linked client. Excludes archived tasks.",
+)
 class PortalTicketListView(generics.ListAPIView):
     serializer_class = PortalTicketListSerializer
     permission_classes = [IsClient]
@@ -68,8 +76,11 @@ class PortalTicketListView(generics.ListAPIView):
     search_fields = ["title"]
     ordering_fields = ["created_at", "deadline"]
     ordering = ["-created_at"]
+    queryset = Task.objects.none()
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Task.objects.none()
         user = self.request.user
         if not user.client_id:
             return Task.objects.none()
@@ -83,11 +94,19 @@ class PortalTicketListView(generics.ListAPIView):
         )
 
 
+@extend_schema(
+    tags=["Portal"],
+    summary="Get portal ticket detail",
+    description="Client-role only. Includes public comments and attachments.",
+)
 class PortalTicketDetailView(generics.RetrieveAPIView):
     serializer_class = PortalTicketDetailSerializer
     permission_classes = [IsClient]
+    queryset = Task.objects.none()
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Task.objects.none()
         user = self.request.user
         if not user.client_id:
             return Task.objects.none()

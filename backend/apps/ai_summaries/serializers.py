@@ -11,7 +11,7 @@ class RequestedBySerializer(serializers.Serializer):
 
 
 class SummaryListSerializer(serializers.ModelSerializer):
-    has_versions = serializers.BooleanField(read_only=True, default=False)
+    has_versions = serializers.BooleanField(read_only=True, default=False, help_text="True if there are multiple versions (regenerations) for this period.")
 
     class Meta:
         model = ReportSummary
@@ -23,7 +23,7 @@ class SummaryListSerializer(serializers.ModelSerializer):
 
 
 class SummaryDetailSerializer(serializers.ModelSerializer):
-    version_count = serializers.IntegerField(read_only=True, default=1)
+    version_count = serializers.IntegerField(read_only=True, default=1, help_text="Total number of versions for this period.")
     requested_by = RequestedBySerializer(read_only=True)
 
     class Meta:
@@ -49,8 +49,8 @@ class SummaryVersionSerializer(serializers.ModelSerializer):
 
 
 class GenerateRequestSerializer(serializers.Serializer):
-    period_start = serializers.DateField()
-    period_end = serializers.DateField()
+    period_start = serializers.DateField(help_text="Start date (YYYY-MM-DD). Must be <= period_end.")
+    period_end = serializers.DateField(help_text="End date (YYYY-MM-DD). Must be >= period_start.")
 
     def validate(self, data):
         if data["period_end"] < data["period_start"]:

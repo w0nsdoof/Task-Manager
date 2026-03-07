@@ -2,6 +2,7 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.db.models import Count
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -20,6 +21,35 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Users"],
+        summary="List users",
+        description="Paginated list of users in your organization. Filter by role/is_active, search by email/name.",
+    ),
+    create=extend_schema(
+        tags=["Users"],
+        summary="Create a user",
+        description="Manager-only. Client-role users require client_id.",
+        responses={201: UserDetailSerializer, 400: OpenApiResponse(description="Validation error")},
+    ),
+    retrieve=extend_schema(
+        tags=["Users"],
+        summary="Get user details",
+        description="Includes assigned_tasks_count.",
+    ),
+    partial_update=extend_schema(
+        tags=["Users"],
+        summary="Update a user",
+        description="Manager-only. Can update name, role, is_active, password, client_id.",
+    ),
+    destroy=extend_schema(
+        tags=["Users"],
+        summary="Deactivate user (soft delete)",
+        description="Sets is_active=False. Cannot deactivate the last active manager in the organization.",
+        responses={204: None, 400: OpenApiResponse(description="Cannot deactivate last active manager")},
+    ),
+)
 class UserViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     queryset = User.objects.all()
     permission_classes = [IsManager]

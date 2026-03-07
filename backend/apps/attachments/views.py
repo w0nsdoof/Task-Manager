@@ -1,5 +1,6 @@
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -12,9 +13,38 @@ from apps.audit.services import create_audit_entry
 from apps.tasks.models import Task
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Attachments"], summary="List attachments for a task"),
+    create=extend_schema(
+        tags=["Attachments"],
+        summary="Upload a file to a task",
+        description=(
+            "Max 25 MB. Allowed types: PNG, JPEG, GIF, WebP, PDF, TXT, CSV, "
+            "DOC, DOCX, XLS, XLSX, ZIP, RAR."
+        ),
+        request=AttachmentUploadSerializer,
+        responses={
+            201: AttachmentSerializer,
+            400: OpenApiResponse(description="File too large or unsupported type"),
+        },
+    ),
+    retrieve=extend_schema(
+        tags=["Attachments"],
+        summary="Download an attachment",
+        description="Returns the file as a binary download (Content-Disposition: attachment).",
+        responses={(200, "application/octet-stream"): bytes},
+    ),
+    destroy=extend_schema(
+        tags=["Attachments"],
+        summary="Delete an attachment",
+        description="Manager-only.",
+        responses={204: None, 403: OpenApiResponse(description="Only managers can delete attachments")},
+    ),
+)
 class AttachmentViewSet(viewsets.ModelViewSet):
     serializer_class = AttachmentSerializer
     http_method_names = ["get", "post", "delete", "head", "options"]
+    queryset = Attachment.objects.none()
 
     def get_permissions(self):
         if self.action == "destroy":

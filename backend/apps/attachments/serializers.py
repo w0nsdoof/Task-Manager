@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.attachments.models import Attachment
@@ -16,9 +17,9 @@ MAX_FILE_SIZE = 25 * 1024 * 1024
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
-    filename = serializers.CharField(source="original_filename", read_only=True)
+    filename = serializers.CharField(source="original_filename", read_only=True, help_text="Original filename as uploaded.")
     uploaded_by = serializers.SerializerMethodField()
-    download_url = serializers.SerializerMethodField()
+    download_url = serializers.SerializerMethodField(help_text="Absolute URL to download this file.")
 
     class Meta:
         model = Attachment
@@ -27,6 +28,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
             "uploaded_by", "uploaded_at", "download_url",
         ]
 
+    @extend_schema_field(serializers.DictField(help_text="{id, first_name, last_name}"))
     def get_uploaded_by(self, obj):
         return {
             "id": obj.uploaded_by.id,
@@ -34,6 +36,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
             "last_name": obj.uploaded_by.last_name,
         }
 
+    @extend_schema_field(serializers.URLField())
     def get_download_url(self, obj):
         request = self.context.get("request")
         task_id = obj.task_id
@@ -43,7 +46,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
 
 
 class AttachmentUploadSerializer(serializers.Serializer):
-    file = serializers.FileField()
+    file = serializers.FileField(help_text="File to upload. Max 25 MB. Allowed: PNG, JPEG, GIF, WebP, PDF, TXT, CSV, DOC, DOCX, XLS, XLSX, ZIP, RAR.")
 
     def validate_file(self, value):
         if value.size > MAX_FILE_SIZE:

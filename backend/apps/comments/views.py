@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -12,11 +13,32 @@ from apps.notifications.services import create_notification
 from apps.tasks.models import Task
 
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Comments"],
+        summary="List comments for a task",
+        description="Client-role users see only is_public=True comments. Includes author and mentions.",
+    ),
+    create=extend_schema(
+        tags=["Comments"],
+        summary="Add a comment to a task",
+        description=(
+            "Use @FirstName LastName to mention users (they will be notified). "
+            "Clients cannot create comments (403)."
+        ),
+        request=CommentCreateSerializer,
+        responses={
+            201: CommentSerializer,
+            403: OpenApiResponse(description="Clients cannot create comments"),
+        },
+    ),
+)
 class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
     ordering = ["created_at"]
     http_method_names = ["get", "post", "head", "options"]
+    queryset = Comment.objects.none()
 
     def _get_scoped_task(self):
         """Get task scoped to the requesting user's organization."""

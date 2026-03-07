@@ -1,10 +1,11 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.clients.models import Client
 
 
 class ClientListSerializer(serializers.ModelSerializer):
-    tasks_count = serializers.IntegerField(read_only=True, default=0)
+    tasks_count = serializers.IntegerField(read_only=True, default=0, help_text="Total number of tasks linked to this client.")
 
     class Meta:
         model = Client
@@ -24,6 +25,7 @@ class ClientDetailSerializer(serializers.ModelSerializer):
             "contact_person", "created_at", "task_summary",
         ]
 
+    @extend_schema_field(serializers.DictField(child=serializers.IntegerField(), help_text="Task count breakdown by status: {total, created, in_progress, waiting, done, archived}."))
     def get_task_summary(self, obj):
         from apps.tasks.models import Task
         tasks = obj.tasks.all()

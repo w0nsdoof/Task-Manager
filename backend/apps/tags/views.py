@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
@@ -7,6 +8,16 @@ from apps.tags.models import Tag
 from apps.tags.serializers import TagSerializer
 
 
+@extend_schema_view(
+    list=extend_schema(tags=["Tags"], summary="List tags", description="Search by name with ?search=."),
+    create=extend_schema(
+        tags=["Tags"],
+        summary="Create a tag",
+        description="Slug is auto-generated from name. Name must be unique within organization.",
+    ),
+    retrieve=extend_schema(tags=["Tags"], summary="Get tag details"),
+    destroy=extend_schema(tags=["Tags"], summary="Delete a tag", description="Manager-only.", responses={204: None}),
+)
 class TagViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer

@@ -1,5 +1,7 @@
 from django.db.models import Count, Q
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view, inline_serializer
+from rest_framework import serializers as drf_serializers
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -11,6 +13,7 @@ from apps.notifications.services import create_notification
 from apps.organizations.mixins import OrganizationQuerySetMixin
 from apps.tasks.models import Task
 from apps.tasks.serializers import (
+    AssigneeSerializer,
     TaskAssignSerializer,
     TaskCreateEngineerSerializer,
     TaskCreateSerializer,
@@ -23,6 +26,43 @@ from apps.tasks.serializers import (
 from apps.tasks.services import MANAGER_ONLY_TRANSITIONS, apply_status_change
 
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Tasks"],
+        summary="List tasks",
+        description=(
+            "Paginated task list. By default excludes archived and done+expired tasks. "
+            "Use ?status=archived to view archived tasks."
+        ),
+        parameters=[
+            OpenApiParameter("assignee", type=int, description="Filter by assignee user ID"),
+            OpenApiParameter("tags", type=str, description="Comma-separated tag slugs"),
+            OpenApiParameter("deadline_from", type=str, description="Filter tasks with deadline >= this date (YYYY-MM-DD)"),
+            OpenApiParameter("deadline_to", type=str, description="Filter tasks with deadline <= this date (YYYY-MM-DD)"),
+            OpenApiParameter(
+                "status", type=str,
+                enum=["created", "in_progress", "waiting", "done", "archived"],
+                description="Filter by status. 'archived' also includes done+expired tasks.",
+            ),
+        ],
+    ),
+    create=extend_schema(
+        tags=["Tasks"],
+        summary="Create a task",
+        description="Manager: full fields (assignee_ids, client_id). Engineer: limited fields.",
+        responses={201: TaskDetailSerializer},
+    ),
+    retrieve=extend_schema(tags=["Tasks"], summary="Get task details"),
+    partial_update=extend_schema(
+        tags=["Tasks"],
+        summary="Update a task",
+        description=(
+            "Uses optimistic locking via version field — returns 409 on concurrent edit conflict. "
+            "Engineers can only edit tasks they are assigned to."
+        ),
+        responses={200: TaskDetailSerializer, 409: OpenApiResponse(description="Optimistic lock conflict")},
+    ),
+)
 class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     queryset = Task.objects.all()
     filterset_fields = ["priority", "client"]
@@ -94,6 +134,8 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
         return qs
 
     def get_serializer_class(self):
+        if getattr(self, "swagger_fake_view", False):
+            return TaskDetailSerializer
         if self.action == "list":
             return TaskListSerializer
         if self.action == "create":
@@ -114,6 +156,28 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
                 raise PermissionDenied("Engineers can only edit tasks they are assigned to.")
         serializer.save()
 
+    @extend_schema(
+        tags=["Tasks"],
+        summary="Change task status",
+        description=(
+            "Valid transitions: created->in_progress, in_progress->waiting|done, "
+            "waiting->in_progress, done->in_progress|archived. "
+            "done->archived is manager-only. Engineers can only change status on their assigned tasks."
+        ),
+        request=TaskStatusChangeSerializer,
+        responses={
+            200: inline_serializer("StatusChangeResponse", fields={
+                "id": drf_serializers.IntegerField(),
+                "status": drf_serializers.CharField(),
+                "previous_status": drf_serializers.CharField(allow_null=True),
+                "changed_by": AssigneeSerializer(),
+                "changed_at": drf_serializers.DateTimeField(),
+            }),
+            400: OpenApiResponse(description="Invalid status transition"),
+            403: OpenApiResponse(description="Not assigned or manager-only transition"),
+            409: OpenApiResponse(description="Optimistic lock conflict"),
+        },
+    )
     @action(detail=True, methods=["post"], url_path="status")
     def change_status(self, request, pk=None):
         task = self.get_object()
@@ -162,6 +226,19 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
             "changed_at": updated_task.updated_at,
         })
 
+    @extend_schema(
+        tags=["Tasks"],
+        summary="Assign/reassign task",
+        description="Manager-only. Replaces the full assignee list. All IDs must be active engineers.",
+        request=TaskAssignSerializer,
+        responses={
+            200: inline_serializer("AssignResponse", fields={
+                "id": drf_serializers.IntegerField(),
+                "assignees": AssigneeSerializer(many=True),
+            }),
+            403: OpenApiResponse(description="Only managers can assign tasks"),
+        },
+    )
     @action(detail=True, methods=["post"], url_path="assign")
     def assign(self, request, pk=None):
         task = self.get_object()
@@ -217,13 +294,29 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
                 old_value=f"{user.first_name} {user.last_name} (ID: {user.id})",
             )
 
-        from apps.tasks.serializers import AssigneeSerializer
         assignees = task.assignees.all()
         return Response({
             "id": task.id,
             "assignees": AssigneeSerializer(assignees, many=True).data,
         })
 
+    @extend_schema(
+        tags=["Tasks"],
+        summary="Get task audit history",
+        description="Paginated list of all changes to this task. Manager and engineer only.",
+        responses={
+            200: inline_serializer("AuditHistoryEntry", fields={
+                "id": drf_serializers.IntegerField(),
+                "action": drf_serializers.CharField(help_text="Type of change"),
+                "field": drf_serializers.CharField(help_text="Which field was changed"),
+                "old_value": drf_serializers.CharField(allow_null=True),
+                "new_value": drf_serializers.CharField(allow_null=True),
+                "changed_by": AssigneeSerializer(allow_null=True),
+                "changed_at": drf_serializers.DateTimeField(),
+            }, many=True),
+            403: OpenApiResponse(description="Clients cannot view audit history"),
+        },
+    )
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):
         task = self.get_object()
