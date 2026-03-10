@@ -21,10 +21,14 @@ _use_ssl = bool(os.getenv("SECURE_SSL_REDIRECT", ""))
 SESSION_COOKIE_SECURE = _use_ssl
 CSRF_COOKIE_SECURE = _use_ssl
 SECURE_SSL_REDIRECT = _use_ssl
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 _cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS = [o for o in _cors_origins.split(",") if o]
 CORS_ALLOW_CREDENTIALS = True
+
+_csrf_origins = os.getenv("CSRF_TRUSTED_ORIGINS", "")
+CSRF_TRUSTED_ORIGINS = [o for o in _csrf_origins.split(",") if o]
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.example.com")
