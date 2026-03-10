@@ -26,7 +26,7 @@ class UserListSerializer(serializers.ModelSerializer):
 
 
 class UserDetailSerializer(serializers.ModelSerializer):
-    assigned_tasks_count = serializers.IntegerField(read_only=True, default=0)
+    assigned_tasks_count = serializers.IntegerField(read_only=True, default=0, help_text="Number of tasks currently assigned to this user.")
 
     class Meta:
         model = User
@@ -41,8 +41,8 @@ class UserDetailSerializer(serializers.ModelSerializer):
 class UserCreateSerializer(serializers.ModelSerializer):
     ALLOWED_ROLES = {"manager", "engineer", "client"}
 
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    client_id = serializers.IntegerField(required=False, allow_null=True)
+    password = serializers.CharField(write_only=True, validators=[validate_password], help_text="Min 8 chars, not common, not entirely numeric.")
+    client_id = serializers.IntegerField(required=False, allow_null=True, help_text="Required when role='client'. FK to Client.")
 
     class Meta:
         model = User
@@ -77,8 +77,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     ALLOWED_ROLES = {"manager", "engineer", "client"}
 
-    password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
-    client_id = serializers.IntegerField(required=False, allow_null=True)
+    password = serializers.CharField(write_only=True, required=False, validators=[validate_password], help_text="New password. Omit to keep current.")
+    client_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to Client. Required for client-role users.")
 
     class Meta:
         model = User

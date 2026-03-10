@@ -29,5 +29,5 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
 class CommentCreateSerializer(serializers.Serializer):
-    content = serializers.CharField(min_length=1)
-    is_public = serializers.BooleanField(default=True)
+    content = serializers.CharField(min_length=1, help_text="Comment text. Use @FirstName LastName to mention users.")
+    is_public = serializers.BooleanField(default=True, help_text="If true, visible to client-role users.")

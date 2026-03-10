@@ -52,9 +52,12 @@ class OrganizationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = ["name"]
+        extra_kwargs = {"name": {"help_text": "Organization name. Must be globally unique. Slug is auto-generated."}}
 
 
 class OrganizationUpdateSerializer(serializers.ModelSerializer):
+    is_active = serializers.BooleanField(required=False, help_text="Set to false to deactivate the organization.")
+
     class Meta:
         model = Organization
         fields = ["name", "is_active"]
@@ -68,10 +71,10 @@ class ManagerBriefSerializer(serializers.ModelSerializer):
 
 
 class ManagerCreateSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    email = serializers.EmailField(help_text="Must be globally unique.")
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
-    password = serializers.CharField(write_only=True, validators=[validate_password])
+    password = serializers.CharField(write_only=True, validators=[validate_password], help_text="Min 8 chars, not common, not entirely numeric.")
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():

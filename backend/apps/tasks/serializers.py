@@ -30,8 +30,8 @@ class TaskListSerializer(serializers.ModelSerializer):
     client = ClientBriefSerializer(read_only=True)
     assignees = AssigneeSerializer(many=True, read_only=True)
     tags = TagBriefSerializer(many=True, read_only=True)
-    comments_count = serializers.IntegerField(read_only=True, default=0)
-    attachments_count = serializers.IntegerField(read_only=True, default=0)
+    comments_count = serializers.IntegerField(read_only=True, default=0, help_text="Number of comments on this task.")
+    attachments_count = serializers.IntegerField(read_only=True, default=0, help_text="Number of attachments on this task.")
 
     class Meta:
         model = Task
@@ -61,12 +61,14 @@ class TaskDetailSerializer(serializers.ModelSerializer):
 
 class TaskCreateSerializer(serializers.ModelSerializer):
     assignee_ids = serializers.ListField(
-        child=serializers.IntegerField(), required=False, default=list
+        child=serializers.IntegerField(), required=False, default=list,
+        help_text="List of user IDs to assign. Must be active engineers. Manager-only.",
     )
     tag_ids = serializers.ListField(
-        child=serializers.IntegerField(), required=False, default=list
+        child=serializers.IntegerField(), required=False, default=list,
+        help_text="List of tag IDs to attach.",
     )
-    client_id = serializers.IntegerField(required=False, allow_null=True)
+    client_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to Client.")
 
     class Meta:
         model = Task
@@ -134,9 +136,10 @@ class TaskCreateSerializer(serializers.ModelSerializer):
 
 class TaskUpdateSerializer(serializers.ModelSerializer):
     tag_ids = serializers.ListField(
-        child=serializers.IntegerField(), required=False
+        child=serializers.IntegerField(), required=False,
+        help_text="Set of tag IDs. Replaces existing tags.",
     )
-    client_id = serializers.IntegerField(required=False, allow_null=True)
+    client_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to Client. Pass null to unlink.")
 
     class Meta:
         model = Task
@@ -233,12 +236,12 @@ class TaskUpdateEngineerSerializer(serializers.ModelSerializer):
 
 
 class TaskStatusChangeSerializer(serializers.Serializer):
-    status = serializers.ChoiceField(choices=Task.Status.choices)
-    comment = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=Task.Status.choices, help_text="Target status. Must be a valid transition from current status.")
+    comment = serializers.CharField(required=False, allow_blank=True, help_text="Optional comment recorded with the status change.")
 
 
 class TaskAssignSerializer(serializers.Serializer):
-    assignee_ids = serializers.ListField(child=serializers.IntegerField())
+    assignee_ids = serializers.ListField(child=serializers.IntegerField(), help_text="Full list of user IDs to assign. Replaces existing. All must be active engineers.")
 
     def validate_assignee_ids(self, value):
         engineers = User.objects.filter(pk__in=value, role="engineer", is_active=True)

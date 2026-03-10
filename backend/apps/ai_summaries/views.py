@@ -1,5 +1,10 @@
 from django.db.models import Count, OuterRef, Subquery
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    inline_serializer,
+)
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.response import Response
@@ -24,7 +29,10 @@ class SummaryLatestView(APIView):
     @extend_schema(
         summary="Get latest summaries",
         description="Returns the most recent completed daily and weekly summaries.",
-        responses={200: dict},
+        responses={200: inline_serializer("LatestSummariesResponse", fields={
+            "daily": SummaryListSerializer(allow_null=True),
+            "weekly": SummaryListSerializer(allow_null=True),
+        })},
         tags=["Summaries"],
     )
     def get(self, request):
@@ -51,6 +59,7 @@ class SummaryListView(ListAPIView):
     """GET /api/summaries/ — paginated list, latest version per period group only."""
     serializer_class = SummaryListSerializer
     permission_classes = [IsManagerOrEngineer]
+    queryset = ReportSummary.objects.none()
 
     @extend_schema(
         summary="List report summaries",
@@ -65,6 +74,8 @@ class SummaryListView(ListAPIView):
         return super().get(request, *args, **kwargs)
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return ReportSummary.objects.none()
         org = self.request.user.organization
         latest_ids_subquery = (
             ReportSummary.objects.filter(

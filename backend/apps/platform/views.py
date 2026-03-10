@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Count
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -20,10 +20,27 @@ User = get_user_model()
 
 
 @extend_schema_view(
-    list=extend_schema(tags=["platform"], summary="List all organizations"),
-    create=extend_schema(tags=["platform"], summary="Create a new organization"),
-    retrieve=extend_schema(tags=["platform"], summary="Get organization details with stats"),
-    partial_update=extend_schema(tags=["platform"], summary="Update organization (name, is_active)"),
+    list=extend_schema(
+        tags=["Platform"],
+        summary="List all organizations",
+        description="Superadmin-only. Paginated list with user and task counts.",
+        parameters=[OpenApiParameter("is_active", type=bool, description="Filter by active status")],
+    ),
+    create=extend_schema(
+        tags=["Platform"],
+        summary="Create a new organization",
+        description="Superadmin-only. Slug is auto-generated from name.",
+    ),
+    retrieve=extend_schema(
+        tags=["Platform"],
+        summary="Get organization details with stats",
+        description="Includes counts by role, tasks, and clients.",
+    ),
+    partial_update=extend_schema(
+        tags=["Platform"],
+        summary="Update organization (name, is_active)",
+        description="Superadmin-only. Set is_active=false to deactivate.",
+    ),
 )
 class OrganizationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsSuperadmin]
@@ -59,13 +76,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return OrganizationDetailSerializer
 
     @extend_schema(
-        tags=["platform"],
+        tags=["Platform"],
         methods=["GET"],
         summary="List managers for an organization",
         responses={200: ManagerBriefSerializer(many=True)},
     )
     @extend_schema(
-        tags=["platform"],
+        tags=["Platform"],
         methods=["POST"],
         summary="Create a manager for an organization",
         request=ManagerCreateSerializer,

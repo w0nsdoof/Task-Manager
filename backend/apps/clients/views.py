@@ -1,4 +1,5 @@
 from django.db.models import Count
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import viewsets
 
 from apps.accounts.permissions import IsManagerOrReadOnly
@@ -11,6 +12,25 @@ from apps.clients.serializers import (
 from apps.organizations.mixins import OrganizationQuerySetMixin
 
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Clients"],
+        summary="List clients",
+        description="Paginated list with tasks_count. Client-role users see only their linked client.",
+    ),
+    create=extend_schema(
+        tags=["Clients"],
+        summary="Create a client",
+        description="Manager-only. Name must be unique within organization.",
+        responses={201: ClientDetailSerializer, 400: OpenApiResponse(description="Duplicate name or validation error")},
+    ),
+    retrieve=extend_schema(
+        tags=["Clients"],
+        summary="Get client details",
+        description="Includes task_summary breakdown by status.",
+    ),
+    partial_update=extend_schema(tags=["Clients"], summary="Update a client", description="Manager-only."),
+)
 class ClientViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     queryset = Client.objects.all()
     permission_classes = [IsManagerOrReadOnly]

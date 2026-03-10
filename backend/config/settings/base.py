@@ -140,9 +140,31 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Task Management System API",
-    "DESCRIPTION": "API for IT outsourcing task management",
+    "DESCRIPTION": (
+        "API for IT outsourcing task management.\n\n"
+        "## Authentication\n\n"
+        "1. **Login**: `POST /api/auth/token/` with `{email, password}` — returns `{access}` in body, "
+        "sets `refresh_token` as httpOnly cookie.\n"
+        "2. **Refresh**: `POST /api/auth/token/refresh/` — no body needed, reads cookie, returns new `{access}`.\n"
+        "3. **Logout**: `POST /api/auth/logout/` — clears cookie.\n"
+        "4. All other endpoints require `Authorization: Bearer <access_token>` header.\n\n"
+        "## Roles\n\n"
+        "- **manager** — full access (CRUD tasks, users, clients, reports, audit history)\n"
+        "- **engineer** — tasks + kanban only (limited create/update)\n"
+        "- **client** — portal only (own tickets, public comments)\n\n"
+        "## Pagination\n\n"
+        "All list endpoints return `{count, next, previous, results[]}` with `?page` and `?page_size` (max 100).\n\n"
+        "## Errors\n\n"
+        "- Validation errors: `{field_name: [\"error message\"]}` (400)\n"
+        "- Permission errors: `{detail: \"message\"}` (403)\n"
+        "- Optimistic lock conflicts: `{detail: \"message\", code: \"conflict\"}` (409)\n\n"
+        "## WebSocket\n\n"
+        "Real-time Kanban updates via `ws://<host>/ws/kanban/?token=<JWT>`. "
+        "See `docs/websocket-api.md` for full protocol documentation."
+    ),
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
     "SECURITY": [{"jwtAuth": []}],
     "APPEND_COMPONENTS": {
         "securitySchemes": {
@@ -152,6 +174,29 @@ SPECTACULAR_SETTINGS = {
                 "bearerFormat": "JWT",
             },
         },
+    },
+    "TAGS": [
+        {"name": "Auth", "description": "JWT authentication (login, refresh, logout, verify)"},
+        {"name": "Users", "description": "User management (CRUD, role assignment). Manager-only."},
+        {"name": "Tasks", "description": "Task CRUD, status transitions, assignment, and audit history"},
+        {"name": "Clients", "description": "Client company management"},
+        {"name": "Portal", "description": "Client portal — read-only tickets for client-role users"},
+        {"name": "Comments", "description": "Task comments with @mention support"},
+        {"name": "Attachments", "description": "File upload/download per task (max 25 MB)"},
+        {"name": "Tags", "description": "Tag management (label tasks by category)"},
+        {"name": "Notifications", "description": "In-app notification inbox"},
+        {"name": "Reports", "description": "Report data, PDF and Excel exports"},
+        {"name": "Summaries", "description": "AI-generated report summaries"},
+        {"name": "Platform", "description": "Superadmin organization management"},
+    ],
+    "ENUM_NAME_OVERRIDES": {
+        "TaskStatusEnum": "apps.tasks.models.Task.Status",
+        "TaskPriorityEnum": "apps.tasks.models.Task.Priority",
+        "SummaryStatusEnum": "apps.ai_summaries.models.ReportSummary.Status",
+        "SummaryPeriodTypeEnum": "apps.ai_summaries.models.ReportSummary.PeriodType",
+        "SummaryGenerationMethodEnum": "apps.ai_summaries.models.ReportSummary.GenerationMethod",
+        "NotificationEventTypeEnum": "apps.notifications.models.Notification.EventType",
+        "ClientTypeEnum": "apps.clients.models.Client.ClientType",
     },
 }
 

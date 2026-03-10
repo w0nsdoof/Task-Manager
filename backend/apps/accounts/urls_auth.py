@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.urls import path
-from rest_framework import status
+from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -38,6 +39,26 @@ def _delete_refresh_cookie(response):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+    @extend_schema(
+        tags=["Auth"],
+        summary="Login (obtain JWT tokens)",
+        description=(
+            "Authenticate with email and password. Returns access token in response body "
+            "and sets refresh token as httpOnly cookie (path=/api/auth/). "
+            "Access token contains custom claims: email, first_name, last_name, role, organization_id."
+        ),
+        request=inline_serializer("LoginRequest", fields={
+            "email": serializers.EmailField(help_text="User email address"),
+            "password": serializers.CharField(help_text="User password"),
+        }),
+        responses={
+            200: inline_serializer("LoginResponse", fields={
+                "access": serializers.CharField(help_text="JWT access token"),
+            }),
+            401: OpenApiResponse(description="Invalid email or password"),
+        },
+        auth=[],
+    )
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -50,6 +71,22 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 class CookieTokenRefreshView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Auth"],
+        summary="Refresh access token",
+        description=(
+            "Reads refresh token from httpOnly cookie and returns a new access token. "
+            "No request body needed. If refresh token is rotated, the cookie is updated."
+        ),
+        request=None,
+        responses={
+            200: inline_serializer("RefreshResponse", fields={
+                "access": serializers.CharField(help_text="New JWT access token"),
+            }),
+            401: OpenApiResponse(description="Missing or expired refresh token cookie"),
+        },
+        auth=[],
+    )
     def post(self, request, *args, **kwargs):
         refresh_token = request.COOKIES.get(REFRESH_COOKIE)
         if not refresh_token:
@@ -76,15 +113,27 @@ class CookieTokenRefreshView(APIView):
 class LogoutView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        tags=["Auth"],
+        summary="Logout (clear refresh cookie)",
+        request=None,
+        responses={204: None},
+        auth=[],
+    )
     def post(self, request, *args, **kwargs):
         response = Response(status=status.HTTP_204_NO_CONTENT)
         _delete_refresh_cookie(response)
         return response
 
 
+@extend_schema(tags=["Auth"], summary="Verify access token", auth=[])
+class DecoratedTokenVerifyView(TokenVerifyView):
+    pass
+
+
 urlpatterns = [
     path("token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("token/refresh/", CookieTokenRefreshView.as_view(), name="token_refresh"),
-    path("token/verify/", TokenVerifyView.as_view(), name="token_verify"),
+    path("token/verify/", DecoratedTokenVerifyView.as_view(), name="token_verify"),
     path("logout/", LogoutView.as_view(), name="auth_logout"),
 ]
