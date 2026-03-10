@@ -91,10 +91,10 @@ DEPLOY
 
 # Step 4: Post-deploy health verification (always via SSH since REMOTE_HOST may be an alias)
 echo "==> Verifying deployment..."
-HEALTH_OK=$(ssh "$REMOTE_HOST" "curl -sf -o /dev/null -w '%{http_code}' http://localhost:8000/api/health/ 2>/dev/null || echo 000")
+HEALTH_OK=$(ssh "$REMOTE_HOST" "docker exec taskmanager-backend python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')\" 2>/dev/null && echo OK || echo FAIL")
 
-if [ "$HEALTH_OK" != "200" ]; then
-  echo "==> FATAL: Health check failed (HTTP $HEALTH_OK)"
+if [ "$HEALTH_OK" != "OK" ]; then
+  echo "==> FATAL: Health check failed"
   exit 1
 fi
 
