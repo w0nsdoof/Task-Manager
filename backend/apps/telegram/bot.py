@@ -9,6 +9,13 @@ logger = logging.getLogger(__name__)
 _CODE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,64}$")
 
 
+def _is_already_linked(chat_id):
+    """Check if this chat_id already has a linked account."""
+    from apps.telegram.models import TelegramLink
+
+    return TelegramLink.objects.filter(chat_id=chat_id).exists()
+
+
 def _try_verify(code, chat_id, telegram_username):
     """Attempt to verify a code and send a response message."""
     success, error = verify_code_and_link(code, chat_id, telegram_username)
@@ -47,12 +54,15 @@ def handle_webhook_update(payload):
         _try_verify(code, chat_id, telegram_username)
 
     elif text == "/start":
-        send_telegram_message(
-            chat_id,
-            "Welcome! To link your account, use the link from your settings page.\n\n"
-            "If the link didn't work automatically, copy the verification code "
-            "from the settings page and paste it here.",
-        )
+        if _is_already_linked(chat_id):
+            send_telegram_message(chat_id, "Your account is already linked. You will receive notifications here.")
+        else:
+            send_telegram_message(
+                chat_id,
+                "Welcome! To link your account, use the link from your settings page.\n\n"
+                "If the link didn't work automatically, copy the verification code "
+                "from the settings page and paste it here.",
+            )
 
     # Handle /verify <code> as explicit fallback command
     elif text.startswith("/verify "):
@@ -62,6 +72,6 @@ def handle_webhook_update(payload):
             return
         _try_verify(code, chat_id, telegram_username)
 
-    # Handle plain text that looks like a verification code
-    elif _CODE_PATTERN.match(text.strip()):
+    # Handle plain text that looks like a verification code (only if not already linked)
+    elif _CODE_PATTERN.match(text.strip()) and not _is_already_linked(chat_id):
         _try_verify(text.strip(), chat_id, telegram_username)
