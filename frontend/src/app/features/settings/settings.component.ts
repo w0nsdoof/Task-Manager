@@ -8,7 +8,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, interval, switchMap, takeUntil, takeWhile } from 'rxjs';
 import { TelegramService, TelegramStatus, TelegramLinkResponse } from '../../core/services/telegram.service';
 
 @Component({
@@ -288,6 +288,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   unlinking = false;
   togglingNotifications = false;
   private destroy$ = new Subject<void>();
+  private stopPolling$ = new Subject<void>();
 
   constructor(
     private telegramService: TelegramService,
@@ -301,6 +302,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.stopPolling$.next();
+    this.stopPolling$.complete();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -320,6 +323,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.linkData = data;
         this.linking = false;
         this.cdr.markForCheck();
+        this.pollForLink();
       },
       error: () => {
         this.linking = false;
@@ -328,7 +332,27 @@ export class SettingsComponent implements OnInit, OnDestroy {
     });
   }
 
+  private pollForLink(): void {
+    this.stopPolling$.next();
+    const expiresAt = this.linkData?.expires_at ? new Date(this.linkData.expires_at).getTime() : 0;
+    interval(3000).pipe(
+      takeUntil(this.stopPolling$),
+      takeUntil(this.destroy$),
+      takeWhile(() => !!this.linkData && Date.now() < expiresAt),
+      switchMap(() => this.telegramService.getStatus()),
+    ).subscribe((status) => {
+      if (status.is_linked) {
+        this.status = status;
+        this.linkData = null;
+        this.stopPolling$.next();
+        this.snackBar.open(this.translate.instant('settings.linkSuccess'), this.translate.instant('common.dismiss'), { duration: 3000 });
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
   onUnlink(): void {
+    this.stopPolling$.next();
     this.unlinking = true;
     this.telegramService.unlink().pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
