@@ -16,6 +16,7 @@ import { Subject, takeUntil } from 'rxjs';
 import { TaskService, TaskDetail } from '../../../../core/services/task.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { STATUS_TRANSLATION_KEYS, VALID_TRANSITIONS } from '../../../../core/constants/task-status';
+import { CommentSectionComponent } from '../comment-section/comment-section.component';
 
 @Component({
   selector: 'app-task-detail',
@@ -24,7 +25,7 @@ import { STATUS_TRANSLATION_KEYS, VALID_TRANSITIONS } from '../../../../core/con
     CommonModule, RouterModule, MatCardModule, MatChipsModule,
     MatButtonModule, MatIconModule, MatListModule, MatDividerModule,
     MatTabsModule, MatProgressBarModule, MatMenuModule, MatSnackBarModule,
-    TranslateModule,
+    TranslateModule, CommentSectionComponent,
   ],
   template: `
     <div *ngIf="task" class="task-detail">
@@ -147,6 +148,11 @@ import { STATUS_TRANSLATION_KEYS, VALID_TRANSITIONS } from '../../../../core/con
             </ng-template>
           </div>
         </mat-tab>
+        <mat-tab [label]="translate.instant('comments.title')">
+          <div class="tab-content">
+            <app-comment-section [taskId]="task.id"></app-comment-section>
+          </div>
+        </mat-tab>
         <mat-tab [label]="translate.instant('tasks.history')" *ngIf="canViewHistory">
           <div class="tab-content">
             <mat-progress-bar *ngIf="historyLoading" mode="indeterminate"></mat-progress-bar>
@@ -267,7 +273,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
   uploading = false;
   private taskId!: number;
   private destroy$ = new Subject<void>();
-  private readonly historyTabIndex = 1;
+  private readonly historyTabIndex = 2;
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 

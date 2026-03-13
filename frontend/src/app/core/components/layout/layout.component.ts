@@ -13,6 +13,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil, filter } from 'rxjs';
 import { AuthService, UserInfo } from '../../services/auth.service';
 import { NotificationService, Notification } from '../../services/notification.service';
+import { ProfileService } from '../../services/profile.service';
 import { LanguageSwitcherComponent } from '../../../shared/components/language-switcher/language-switcher.component';
 
 interface NavItem {
@@ -94,7 +95,8 @@ interface NavItem {
             </mat-menu>
 
             <button class="avatar-btn" [matMenuTriggerFor]="userMenu">
-              <div class="user-avatar">
+              <img *ngIf="avatarUrl" [src]="avatarUrl" alt="avatar" class="user-avatar-img">
+              <div *ngIf="!avatarUrl" class="user-avatar">
                 {{ currentUser?.first_name?.charAt(0) || '' }}{{ currentUser?.last_name?.charAt(0) || '' }}
               </div>
             </button>
@@ -104,6 +106,11 @@ interface NavItem {
                 <br /><small style="color: #6b7280;">{{ currentUser.role }}</small>
               </div>
               <mat-divider></mat-divider>
+              <button mat-menu-item routerLink="/settings"
+                      *ngIf="currentUser && (currentUser.role === 'manager' || currentUser.role === 'engineer')">
+                <mat-icon>settings</mat-icon>
+                <span>{{ 'nav.settings' | translate }}</span>
+              </button>
               <button mat-menu-item (click)="logout()">
                 <mat-icon>logout</mat-icon>
                 <span>{{ 'nav.logout' | translate }}</span>
@@ -297,6 +304,13 @@ interface NavItem {
         text-transform: uppercase;
       }
 
+      .user-avatar-img {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+
       /* Content */
       .content {
         flex: 1;
@@ -309,6 +323,7 @@ interface NavItem {
 })
 export class LayoutComponent implements OnInit, OnDestroy {
   currentUser: UserInfo | null = null;
+  avatarUrl: string | null = null;
   unreadCount = 0;
   notifications: Notification[] = [];
   filteredNavItems: NavItem[] = [];
@@ -341,11 +356,13 @@ export class LayoutComponent implements OnInit, OnDestroy {
     '/admin/tags': 'nav.tags',
     '/portal': 'nav.myTickets',
     '/platform/organizations': 'nav.organizations',
+    '/settings': 'nav.settings',
   };
 
   constructor(
     private authService: AuthService,
     private notificationService: NotificationService,
+    private profileService: ProfileService,
     private router: Router,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService,
@@ -359,6 +376,10 @@ export class LayoutComponent implements OnInit, OnDestroy {
       );
       if (user) {
         this.notificationService.refreshUnreadCount();
+        this.profileService.getProfile().pipe(takeUntil(this.destroy$)).subscribe((profile) => {
+          this.avatarUrl = profile.avatar || null;
+          this.cdr.markForCheck();
+        });
       }
       this.cdr.markForCheck();
     });

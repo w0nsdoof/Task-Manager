@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute } from '@angular/router';
 import { provideTranslateService } from '@ngx-translate/core';
 import { of } from 'rxjs';
@@ -54,6 +56,8 @@ describe('TaskDetailComponent', () => {
       providers: [
         provideRouter([]),
         provideNoopAnimations(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         provideTranslateService(),
         { provide: TaskService, useValue: taskServiceSpy },
         { provide: AuthService, useValue: authServiceSpy },
@@ -82,16 +86,16 @@ describe('TaskDetailComponent', () => {
   });
 
   it('should fetch history on tab change to History tab', () => {
-    component.onTabChange({ index: 1 } as any);
+    component.onTabChange({ index: 2 } as any);
     expect(taskServiceSpy.getHistory).toHaveBeenCalledWith(1);
     expect(component.history.length).toBe(1);
     expect(component.historyLoaded).toBeTrue();
   });
 
   it('should not re-fetch history if already loaded', () => {
-    component.onTabChange({ index: 1 } as any);
+    component.onTabChange({ index: 2 } as any);
     taskServiceSpy.getHistory.calls.reset();
-    component.onTabChange({ index: 1 } as any);
+    component.onTabChange({ index: 2 } as any);
     expect(taskServiceSpy.getHistory).not.toHaveBeenCalled();
   });
 
