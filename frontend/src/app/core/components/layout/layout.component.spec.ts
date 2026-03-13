@@ -6,6 +6,7 @@ import { BehaviorSubject, of } from 'rxjs';
 import { LayoutComponent } from './layout.component';
 import { AuthService, UserInfo } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
+import { ProfileService } from '../../services/profile.service';
 
 describe('LayoutComponent', () => {
   let component: LayoutComponent;
@@ -13,6 +14,7 @@ describe('LayoutComponent', () => {
   let currentUserSubject: BehaviorSubject<UserInfo | null>;
   let authService: jasmine.SpyObj<AuthService> & { currentUser$: any };
   let notificationService: jasmine.SpyObj<NotificationService> & { unreadCount$: any };
+  let profileService: jasmine.SpyObj<ProfileService>;
 
   function setupWithRole(role: 'superadmin' | 'manager' | 'engineer' | 'client') {
     const user: UserInfo = { id: 1, email: `${role}@test.com`, first_name: 'Test', last_name: 'User', role, organization_id: role === 'superadmin' ? null : 1 };
@@ -33,6 +35,11 @@ describe('LayoutComponent', () => {
     notificationService.list.and.returnValue(of({ count: 0, next: null, previous: null, results: [] }));
     notificationService.markAsRead.and.returnValue(of({}));
     notificationService.markAllAsRead.and.returnValue(of({ updated_count: 0 }));
+    profileService = jasmine.createSpyObj('ProfileService', ['getProfile']);
+    profileService.getProfile.and.returnValue(of({
+      id: 1, email: 'test@test.com', first_name: 'Test', last_name: 'User',
+      role: 'manager', avatar: null, job_title: '', skills: '', bio: '', date_joined: '',
+    }));
 
     await TestBed.configureTestingModule({
       imports: [LayoutComponent],
@@ -42,6 +49,7 @@ describe('LayoutComponent', () => {
         provideTranslateService(),
         { provide: AuthService, useValue: authService },
         { provide: NotificationService, useValue: notificationService },
+        { provide: ProfileService, useValue: profileService },
       ],
     }).compileComponents();
 
