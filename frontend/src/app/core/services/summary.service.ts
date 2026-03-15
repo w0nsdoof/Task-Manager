@@ -22,6 +22,8 @@ export interface SummaryDetail extends SummaryListItem {
   generation_time_ms: number | null;
   raw_data: any;
   error_message: string;
+  prompt_text: string;
+  sections: { [key: string]: string } | null;
   requested_by: { id: number; email: string; first_name: string; last_name: string } | null;
   version_count: number;
 }

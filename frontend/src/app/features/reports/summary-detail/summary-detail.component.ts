@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatListModule } from '@angular/material/list';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -19,7 +20,7 @@ import { AuthService } from '../../../core/services/auth.service';
     imports: [
         CommonModule, RouterModule, MatCardModule, MatButtonModule,
         MatIconModule, MatChipsModule, MatListModule, MatDividerModule,
-        MatProgressSpinnerModule, MatSnackBarModule, TranslateModule,
+        MatExpansionModule, MatProgressSpinnerModule, MatSnackBarModule, TranslateModule,
     ],
     template: `
     <div class="header-row">
@@ -47,7 +48,17 @@ import { AuthService } from '../../../core/services/auth.service';
           </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <p class="summary-text">{{ summary.summary_text }}</p>
+          <div *ngIf="hasSections(); else plainText" class="structured-summary">
+            <div *ngFor="let section of sectionOrder" class="summary-section">
+              <ng-container *ngIf="summary.sections![section]">
+                <h3 class="section-header">{{ section }}</h3>
+                <div class="section-content" [innerHTML]="renderMarkdown(summary.sections![section])"></div>
+              </ng-container>
+            </div>
+          </div>
+          <ng-template #plainText>
+            <p class="summary-text">{{ summary.summary_text }}</p>
+          </ng-template>
 
           <mat-divider></mat-divider>
 
@@ -65,6 +76,15 @@ import { AuthService } from '../../../core/services/auth.service';
               <strong>{{ 'summaries.error' | translate }}</strong> {{ summary.error_message }}
             </div>
           </div>
+
+          <mat-accordion *ngIf="isManager && summary.prompt_text" class="prompt-accordion">
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>{{ 'summaries.promptSent' | translate }}</mat-panel-title>
+              </mat-expansion-panel-header>
+              <pre class="prompt-text">{{ summary.prompt_text }}</pre>
+            </mat-expansion-panel>
+          </mat-accordion>
         </mat-card-content>
         <mat-card-actions *ngIf="isManager">
           <button mat-raised-button color="primary" (click)="regenerate()" [disabled]="regenerating">
@@ -103,6 +123,15 @@ import { AuthService } from '../../../core/services/auth.service';
     .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .detail-card { margin-bottom: 24px; }
     .summary-text { white-space: pre-line; line-height: 1.6; font-size: 15px; margin: 16px 0; }
+    .structured-summary { margin: 16px 0; }
+    .summary-section { margin-bottom: 16px; }
+    .section-header { font-size: 16px; font-weight: 600; color: #1565c0; margin: 0 0 8px 0; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; }
+    .section-content { line-height: 1.6; font-size: 15px; margin: 0; }
+    .section-content p { margin: 4px 0; }
+    .section-content ul { margin: 4px 0 4px 16px; padding-left: 8px; }
+    .section-content li { margin: 2px 0; }
+    .prompt-accordion { margin-top: 16px; display: block; }
+    .prompt-text { white-space: pre-wrap; font-size: 13px; background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; }
     .metadata { margin-top: 16px; }
     .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 8px; }
     .meta-info { margin-left: 12px; color: #666; }
@@ -139,6 +168,7 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
   loading = false;
   regenerating = false;
   isManager = false;
+  sectionOrder = ['Overview', 'Key Metrics', 'Highlights', 'Risks & Blockers', 'Recommendations'];
   private destroy$ = new Subject<void>();
 
   constructor(
@@ -184,6 +214,32 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
 
   switchVersion(version: SummaryVersion): void {
     this.router.navigate(['/reports/summaries', version.id]);
+  }
+
+  hasSections(): boolean {
+    return !!this.summary?.sections && Object.keys(this.summary.sections).length > 0;
+  }
+
+  renderMarkdown(text: string): string {
+    // Convert **bold** to <strong>
+    let html = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Split into lines and wrap list items in <ul>
+    const lines = html.split('\n');
+    const result: string[] = [];
+    let inList = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^[-*]\s/.test(trimmed) || /^\d+\.\s/.test(trimmed)) {
+        if (!inList) { result.push('<ul>'); inList = true; }
+        const content = trimmed.replace(/^[-*]\s+/, '').replace(/^\d+\.\s+/, '');
+        result.push(`<li>${content}</li>`);
+      } else {
+        if (inList) { result.push('</ul>'); inList = false; }
+        if (trimmed) result.push(`<p>${trimmed}</p>`);
+      }
+    }
+    if (inList) result.push('</ul>');
+    return result.join('');
   }
 
   regenerate(): void {

@@ -31,6 +31,10 @@ class AuditLogEntry(models.Model):
             models.Index(
                 fields=["task", "timestamp"], name="ix_audit_task_timestamp"
             ),
+            models.Index(
+                fields=["action", "new_value", "timestamp"],
+                name="ix_audit_action_val_ts",
+            ),
         ]
 
     def __str__(self):

@@ -37,6 +37,8 @@ class ReportSummary(models.Model):
     generation_time_ms = models.PositiveIntegerField(null=True, blank=True)
     raw_data = models.JSONField(default=dict)
     error_message = models.TextField(blank=True, default="")
+    prompt_text = models.TextField(blank=True, default="")
+    sections = models.JSONField(default=dict, blank=True)
     organization = models.ForeignKey(
         "organizations.Organization",
         on_delete=models.CASCADE,
