@@ -186,7 +186,8 @@
     "regenerating": "Перегенерация...",
     "versionHistory": "История версий",
     "regenerationStarted": "Перегенерация запущена",
-    "regenerationFailed": "Не удалось перегенерировать"
+    "regenerationFailed": "Не удалось перегенерировать",
+    "promptSent": "Промпт, отправленный в LLM"
   },
   "admin": {
     "title": "Управление пользователями",

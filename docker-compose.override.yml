@@ -1,5 +1,10 @@
 services:
+  frontend:
+    ports:
+      - "4200:80"
   backend:
+    ports:
+      - "8000:8000"
     volumes:
       - ./backend:/app
   celery-worker:

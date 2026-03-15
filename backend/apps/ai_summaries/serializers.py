@@ -30,10 +30,10 @@ class SummaryDetailSerializer(serializers.ModelSerializer):
         model = ReportSummary
         fields = [
             "id", "period_type", "period_start", "period_end",
-            "summary_text", "generation_method", "status",
+            "summary_text", "sections", "generation_method", "status",
             "llm_model", "prompt_tokens", "completion_tokens",
             "generation_time_ms", "raw_data", "error_message",
-            "requested_by", "generated_at", "version_count",
+            "prompt_text", "requested_by", "generated_at", "version_count",
         ]
 
 
