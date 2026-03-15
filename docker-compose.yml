@@ -4,6 +4,7 @@ services:
   db:
     image: docker.io/library/postgres:16-alpine
     container_name: taskmanager-db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-taskmanager}
       POSTGRES_USER: ${POSTGRES_USER:-taskmanager}
@@ -21,6 +22,7 @@ services:
   redis:
     image: docker.io/library/redis:7-alpine
     container_name: taskmanager-redis
+    restart: unless-stopped
     expose:
       - "6379"
     healthcheck:
@@ -34,6 +36,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: taskmanager-backend
+    restart: unless-stopped
     environment:
       - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.dev}
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-insecure-dev-key-change-me}
@@ -87,6 +90,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: taskmanager-frontend
+    restart: unless-stopped
     expose:
       - "80"
     depends_on:
@@ -98,6 +102,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: taskmanager-worker
+    restart: unless-stopped
     command: celery -A config worker -l info
     environment:
       - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.dev}
@@ -131,6 +136,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: taskmanager-beat
+    restart: unless-stopped
     command: celery -A config beat -l info
     environment:
       - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.dev}
