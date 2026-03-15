@@ -38,9 +38,9 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-# Disable throttling in tests
+# Disable throttling in tests (keep auth rate so view-level throttle_classes don't error)
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # noqa: F405
-REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {}  # noqa: F405
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {"auth": "10000/minute"}  # noqa: F405
 
 # Suppress logging during tests to keep output clean
 LOGGING = {  # noqa: F405
