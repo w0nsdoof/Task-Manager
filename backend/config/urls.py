@@ -20,6 +20,8 @@ urlpatterns = [
     path("api/platform/", include("apps.platform.urls")),
     path("api/auth/", include("apps.accounts.urls_auth")),
     path("api/users/", include("apps.accounts.urls_users")),
+    path("api/projects/", include("apps.projects.urls")),
+    path("api/epics/", include("apps.projects.urls_epics")),
     path("api/tasks/", include("apps.tasks.urls")),
     path("api/clients/", include("apps.clients.urls")),
     path("api/tags/", include("apps.tags.urls")),

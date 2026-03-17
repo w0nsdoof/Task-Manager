@@ -1,0 +1,190 @@
+# API Contract: Task Endpoint Changes (hierarchy extension)
+# Documents ONLY changes to existing /api/tasks/ endpoints.
+
+changes:
+
+  # ──────────────────────────────────────────────
+  # LIST: GET /api/tasks/
+  # ──────────────────────────────────────────────
+  list:
+    new_query_parameters:
+      - name: parent_task
+        in: query
+        description: |
+          Filter by parent task ID. Returns subtasks of the given task.
+          If omitted, returns top-level tasks only (parent_task IS NULL).
+        schema: { type: integer }
+      - name: epic
+        in: query
+        description: Filter by parent epic ID
+        schema: { type: integer }
+      - name: entity_type
+        in: query
+        description: "'task' or 'subtask'. Convenience alias for parent_task__isnull filter."
+        schema: { type: string, enum: [task, subtask] }
+      - name: include_subtasks
+        in: query
+        description: "If 'true', returns both tasks and subtasks in flat list. Default: false."
+        schema: { type: boolean, default: false }
+
+    response_changes:
+      added_fields:
+        - name: entity_type
+          type: string
+          enum: [task, subtask]
+          description: "Derived: 'subtask' if parent_task is set, else 'task'"
+        - name: epic
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            title: { type: string }
+        - name: parent_task
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            title: { type: string }
+        - name: subtasks_count
+          type: integer
+          description: Number of subtasks (annotated on list)
+
+  # ──────────────────────────────────────────────
+  # CREATE: POST /api/tasks/
+  # ──────────────────────────────────────────────
+  create:
+    new_request_fields:
+      - name: epic_id
+        type: integer
+        nullable: true
+        description: Optional parent epic. Must belong to same organization.
+      - name: parent_task_id
+        type: integer
+        nullable: true
+        description: |
+          Optional parent task. If set, this task is a subtask.
+          Parent must exist, belong to same org, and not itself be a subtask.
+
+    subtask_validation_rules:
+      - "If parent_task_id is set: assignee_ids limited to 0 or 1 user"
+      - "If parent_task_id is set: client_id is ignored (set to null)"
+      - "If parent_task_id is set: parent must not have a parent_task (max 1 level nesting)"
+
+    response_changes:
+      added_fields:
+        - name: entity_type
+          type: string
+        - name: epic
+          type: object
+          nullable: true
+        - name: parent_task
+          type: object
+          nullable: true
+
+  # ──────────────────────────────────────────────
+  # DETAIL: GET /api/tasks/{id}/
+  # ──────────────────────────────────────────────
+  detail:
+    response_changes:
+      added_fields:
+        - name: entity_type
+          type: string
+        - name: epic
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            title: { type: string }
+            project:
+              type: object
+              nullable: true
+              properties:
+                id: { type: integer }
+                title: { type: string }
+        - name: parent_task
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            title: { type: string }
+        - name: subtasks
+          type: array
+          description: Nested subtasks (only for top-level tasks)
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              title: { type: string }
+              status: { type: string }
+              priority: { type: string }
+              deadline: { type: string, format: date-time, nullable: true }
+              assignees:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    first_name: { type: string }
+                    last_name: { type: string }
+
+  # ──────────────────────────────────────────────
+  # UPDATE: PATCH /api/tasks/{id}/
+  # ──────────────────────────────────────────────
+  update:
+    new_request_fields:
+      - name: epic_id
+        type: integer
+        nullable: true
+        description: "Manager-only field (re-parenting)"
+      - name: parent_task_id
+        type: integer
+        nullable: true
+        description: "Manager-only field (re-parenting). Cannot change a task to/from subtask if it has subtasks."
+
+    re_parenting_rules:
+      - "Only managers can change epic_id or parent_task_id (FR-018)"
+      - "Cannot set parent_task_id on a task that has subtasks (would create depth > 1)"
+      - "Cannot set parent_task_id to a subtask (would create depth > 1)"
+      - "New parent must belong to same organization"
+
+  # ──────────────────────────────────────────────
+  # STATUS: POST /api/tasks/{id}/status/
+  # ──────────────────────────────────────────────
+  status:
+    notes: |
+      No changes to status transition rules.
+      Both tasks and subtasks use the same transition map.
+      Subtasks follow the same rules as tasks:
+        - Engineers can transition assigned items (except DONE → ARCHIVED)
+        - DONE → ARCHIVED is manager-only
+
+  # ──────────────────────────────────────────────
+  # ASSIGN: POST /api/tasks/{id}/assign/
+  # ──────────────────────────────────────────────
+  assign:
+    subtask_rules: |
+      For subtasks (parent_task is set):
+        - assignee_ids MUST contain 0 or 1 user
+        - Validation error if more than 1 assignee provided
+
+  # ──────────────────────────────────────────────
+  # SUBTASKS: GET /api/tasks/{id}/subtasks/  [NEW]
+  # ──────────────────────────────────────────────
+  subtasks_list:
+    method: GET
+    path: /api/tasks/{id}/subtasks/
+    description: |
+      Convenience endpoint. Returns subtasks of the given task.
+      Equivalent to GET /api/tasks/?parent_task={id}.
+      Paginated. Same response schema as task list.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+      - name: page
+        in: query
+        schema: { type: integer, default: 1 }
+    responses:
+      200:
+        description: Paginated subtask list

@@ -35,30 +35,23 @@ import { ProfileService, UserProfile } from '../../core/services/profile.service
     <div class="settings-page">
       <!-- Profile card -->
       <mat-card class="profile-card">
-        <mat-card-header>
-          <mat-icon mat-card-avatar class="profile-icon">person</mat-icon>
-          <mat-card-title>{{ 'settings.profile' | translate }}</mat-card-title>
-          <mat-card-subtitle *ngIf="profile">{{ profile.email }}</mat-card-subtitle>
-        </mat-card-header>
-
         <mat-card-content>
-          <!-- Avatar section -->
-          <div class="avatar-section">
+          <!-- Avatar + identity header -->
+          <div class="profile-header">
             <div class="avatar-preview" (click)="avatarInput.click()">
               <img *ngIf="profile?.avatar" [src]="profile!.avatar" alt="avatar" class="avatar-img">
               <div *ngIf="!profile?.avatar" class="avatar-placeholder">
-                <mat-icon>person</mat-icon>
+                {{ profile?.first_name?.charAt(0) || '' }}{{ profile?.last_name?.charAt(0) || '' }}
               </div>
               <div class="avatar-overlay">
                 <mat-icon>photo_camera</mat-icon>
               </div>
             </div>
             <input #avatarInput type="file" accept="image/*" hidden (change)="onAvatarSelected($event)">
-            <div class="avatar-actions">
-              <button mat-button (click)="avatarInput.click()" [disabled]="uploadingAvatar">
-                {{ 'settings.changeAvatar' | translate }}
-              </button>
-              <button mat-button color="warn" *ngIf="profile?.avatar"
+            <div class="profile-identity">
+              <h3 class="profile-name" *ngIf="profile">{{ profile.first_name }} {{ profile.last_name }}</h3>
+              <span class="profile-email" *ngIf="profile">{{ profile.email }}</span>
+              <button mat-button color="warn" *ngIf="profile?.avatar" class="remove-avatar-btn"
                       [disabled]="uploadingAvatar" (click)="onRemoveAvatar()">
                 {{ 'settings.removeAvatar' | translate }}
               </button>
@@ -216,30 +209,17 @@ import { ProfileService, UserProfile } from '../../core/services/profile.service
       margin-bottom: 24px;
     }
 
-    .profile-icon {
-      background: #1976d2;
-      color: #fff;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
+    .profile-header {
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 20px;
-    }
-
-    .avatar-section {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-top: 16px;
-      margin-bottom: 8px;
+      gap: 20px;
+      margin-bottom: 24px;
     }
 
     .avatar-preview {
       position: relative;
-      width: 80px;
-      height: 80px;
+      width: 72px;
+      height: 72px;
       border-radius: 50%;
       overflow: hidden;
       cursor: pointer;
@@ -255,17 +235,15 @@ import { ProfileService, UserProfile } from '../../core/services/profile.service
     .avatar-placeholder {
       width: 100%;
       height: 100%;
-      background: #e0e0e0;
+      background: var(--primary-blue, #1a7cf4);
+      color: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
-    }
-
-    .avatar-placeholder mat-icon {
-      font-size: 40px;
-      width: 40px;
-      height: 40px;
-      color: #9e9e9e;
+      font-size: 22px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
 
     .avatar-overlay {
@@ -281,19 +259,35 @@ import { ProfileService, UserProfile } from '../../core/services/profile.service
 
     .avatar-overlay mat-icon {
       color: #fff;
-      font-size: 28px;
-      width: 28px;
-      height: 28px;
+      font-size: 24px;
+      width: 24px;
+      height: 24px;
     }
 
     .avatar-preview:hover .avatar-overlay {
       opacity: 1;
     }
 
-    .avatar-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
+    .profile-identity {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .profile-name {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 2px;
+      color: var(--text-primary, #1a1a1a);
+    }
+
+    .profile-email {
+      font-size: 13px;
+      color: var(--text-secondary, #6b7280);
+    }
+
+    .remove-avatar-btn {
+      margin-top: 4px;
+      font-size: 12px;
     }
 
     .profile-form {

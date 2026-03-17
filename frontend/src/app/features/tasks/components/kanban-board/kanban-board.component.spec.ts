@@ -20,9 +20,9 @@ describe('KanbanBoardComponent', () => {
   let wsDisconnectSpy: jasmine.Spy;
 
   const makeTasks = (): TaskListItem[] => [
-    { id: 1, title: 'Task 1', status: 'created', priority: 'high', deadline: '', created_at: '', updated_at: '', client: null, assignees: [], tags: [], comments_count: 0, attachments_count: 0 },
-    { id: 2, title: 'Task 2', status: 'in_progress', priority: 'low', deadline: '', created_at: '', updated_at: '', client: null, assignees: [], tags: [], comments_count: 0, attachments_count: 0 },
-    { id: 3, title: 'Task 3', status: 'done', priority: 'medium', deadline: '', created_at: '', updated_at: '', client: null, assignees: [], tags: [], comments_count: 0, attachments_count: 0 },
+    { id: 1, title: 'Task 1', status: 'created', priority: 'high', deadline: '', created_at: '', updated_at: '', client: null, assignees: [], tags: [], comments_count: 0, attachments_count: 0, entity_type: 'task', epic: null, parent_task: null, subtasks_count: 0 },
+    { id: 2, title: 'Task 2', status: 'in_progress', priority: 'low', deadline: '', created_at: '', updated_at: '', client: null, assignees: [], tags: [], comments_count: 0, attachments_count: 0, entity_type: 'task', epic: null, parent_task: null, subtasks_count: 0 },
+    { id: 3, title: 'Task 3', status: 'done', priority: 'medium', deadline: '', created_at: '', updated_at: '', client: null, assignees: [], tags: [], comments_count: 0, attachments_count: 0, entity_type: 'task', epic: null, parent_task: null, subtasks_count: 0 },
   ];
 
   beforeEach(async () => {

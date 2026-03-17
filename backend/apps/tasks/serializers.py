@@ -3,6 +3,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from apps.clients.models import Client
+from apps.projects.models import Epic
 from apps.tags.models import Tag
 from apps.tasks.models import Task
 
@@ -27,12 +28,60 @@ class ClientBriefSerializer(serializers.ModelSerializer):
         fields = ["id", "name"]
 
 
+# --- Hierarchy helper serializers ---
+
+class EpicBriefSerializer(serializers.ModelSerializer):
+    """Brief epic info for task list view: {id, title}."""
+
+    class Meta:
+        model = Epic
+        fields = ["id", "title"]
+
+
+class ProjectBriefSerializer(serializers.Serializer):
+    """Inline project info: {id, title}."""
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+
+
+class EpicDetailBriefSerializer(serializers.ModelSerializer):
+    """Epic info for task detail view: {id, title, project: {id, title} | null}."""
+    project = ProjectBriefSerializer(read_only=True)
+
+    class Meta:
+        model = Epic
+        fields = ["id", "title", "project"]
+
+
+class ParentTaskBriefSerializer(serializers.ModelSerializer):
+    """Brief parent task info: {id, title}."""
+
+    class Meta:
+        model = Task
+        fields = ["id", "title"]
+
+
+class SubtaskSummarySerializer(serializers.ModelSerializer):
+    """Subtask summary for detail view: {id, title, status, priority, deadline, assignees}."""
+    assignees = AssigneeSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Task
+        fields = ["id", "title", "status", "priority", "deadline", "assignees"]
+
+
+# --- Main serializers ---
+
 class TaskListSerializer(serializers.ModelSerializer):
     client = ClientBriefSerializer(read_only=True)
     assignees = AssigneeSerializer(many=True, read_only=True)
     tags = TagBriefSerializer(many=True, read_only=True)
     comments_count = serializers.IntegerField(read_only=True, default=0, help_text="Number of comments on this task.")
     attachments_count = serializers.IntegerField(read_only=True, default=0, help_text="Number of attachments on this task.")
+    entity_type = serializers.SerializerMethodField()
+    epic = EpicBriefSerializer(read_only=True)
+    parent_task = ParentTaskBriefSerializer(read_only=True)
+    subtasks_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Task
@@ -40,7 +89,11 @@ class TaskListSerializer(serializers.ModelSerializer):
             "id", "title", "status", "priority", "deadline",
             "created_at", "updated_at", "client", "assignees", "tags",
             "comments_count", "attachments_count",
+            "entity_type", "epic", "parent_task", "subtasks_count",
         ]
+
+    def get_entity_type(self, obj):
+        return obj.entity_type
 
 
 class TaskDetailSerializer(serializers.ModelSerializer):
@@ -50,6 +103,11 @@ class TaskDetailSerializer(serializers.ModelSerializer):
     created_by = AssigneeSerializer(read_only=True)
     comments_count = serializers.IntegerField(read_only=True, default=0)
     attachments_count = serializers.IntegerField(read_only=True, default=0)
+    entity_type = serializers.SerializerMethodField()
+    epic = EpicDetailBriefSerializer(read_only=True)
+    parent_task = ParentTaskBriefSerializer(read_only=True)
+    subtasks_count = serializers.IntegerField(read_only=True, default=0)
+    subtasks = SubtaskSummarySerializer(many=True, read_only=True)
 
     class Meta:
         model = Task
@@ -57,7 +115,29 @@ class TaskDetailSerializer(serializers.ModelSerializer):
             "id", "title", "description", "status", "priority", "deadline",
             "created_at", "updated_at", "created_by", "client", "assignees",
             "tags", "comments_count", "attachments_count", "version",
+            "entity_type", "epic", "parent_task", "subtasks_count", "subtasks",
         ]
+
+    def get_entity_type(self, obj):
+        return obj.entity_type
+
+
+def _validate_subtask_constraints(data, parent_task_id):
+    """Shared validation for subtask creation constraints."""
+    parent = Task.objects.filter(pk=parent_task_id).first()
+    if parent is None:
+        raise serializers.ValidationError({"parent_task_id": "Parent task not found."})
+    if parent.parent_task_id is not None:
+        raise serializers.ValidationError(
+            {"parent_task_id": "Cannot nest subtasks more than one level deep."}
+        )
+    # Subtask assignees limited to 0-1
+    assignee_ids = data.get("assignee_ids", [])
+    if len(assignee_ids) > 1:
+        raise serializers.ValidationError(
+            {"assignee_ids": "Subtasks can have at most one assignee."}
+        )
+    return parent
 
 
 class TaskCreateSerializer(serializers.ModelSerializer):
@@ -70,10 +150,16 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         help_text="List of tag IDs to attach.",
     )
     client_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to Client.")
+    epic_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to Epic.")
+    parent_task_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to parent Task (creates a subtask).")
 
     class Meta:
         model = Task
-        fields = ["title", "description", "priority", "deadline", "client_id", "assignee_ids", "tag_ids"]
+        fields = [
+            "title", "description", "priority", "deadline",
+            "client_id", "assignee_ids", "tag_ids",
+            "epic_id", "parent_task_id",
+        ]
 
     def validate_client_id(self, value):
         if value:
@@ -95,14 +181,40 @@ class TaskCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("One or more tags are invalid.")
         return value
 
+    def validate_epic_id(self, value):
+        if value:
+            org = self.context["request"].user.organization
+            if not Epic.objects.filter(pk=value, organization=org).exists():
+                raise serializers.ValidationError("Epic not found or does not belong to your organization.")
+        return value
+
+    def validate(self, data):
+        parent_task_id = data.get("parent_task_id")
+        if parent_task_id:
+            org = self.context["request"].user.organization
+            parent = _validate_subtask_constraints(data, parent_task_id)
+            if parent.organization_id != org.id:
+                raise serializers.ValidationError(
+                    {"parent_task_id": "Parent task not found or does not belong to your organization."}
+                )
+            # Force client_id to null for subtasks
+            data["client_id"] = None
+        return data
+
     @transaction.atomic
     def create(self, validated_data):
         assignee_ids = validated_data.pop("assignee_ids", [])
         tag_ids = validated_data.pop("tag_ids", [])
         client_id = validated_data.pop("client_id", None)
+        epic_id = validated_data.pop("epic_id", None)
+        parent_task_id = validated_data.pop("parent_task_id", None)
 
         if client_id:
             validated_data["client_id"] = client_id
+        if epic_id:
+            validated_data["epic_id"] = epic_id
+        if parent_task_id:
+            validated_data["parent_task_id"] = parent_task_id
 
         user = self.context["request"].user
         validated_data["created_by"] = user
@@ -142,10 +254,16 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
         help_text="Set of tag IDs. Replaces existing tags.",
     )
     client_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to Client. Pass null to unlink.")
+    epic_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to Epic. Manager-only re-parenting.")
+    parent_task_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to parent Task. Manager-only re-parenting.")
 
     class Meta:
         model = Task
-        fields = ["title", "description", "priority", "deadline", "client_id", "tag_ids"]
+        fields = [
+            "title", "description", "priority", "deadline",
+            "client_id", "tag_ids",
+            "epic_id", "parent_task_id",
+        ]
 
     def validate_client_id(self, value):
         if value:
@@ -153,12 +271,47 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Client not found.")
         return value
 
+    def validate_epic_id(self, value):
+        if value:
+            org = self.context["request"].user.organization
+            if not Epic.objects.filter(pk=value, organization=org).exists():
+                raise serializers.ValidationError("Epic not found or does not belong to your organization.")
+        return value
+
+    def validate(self, data):
+        parent_task_id = data.get("parent_task_id")
+        if parent_task_id:
+            org = self.context["request"].user.organization
+            parent = Task.objects.filter(pk=parent_task_id).first()
+            if parent is None:
+                raise serializers.ValidationError({"parent_task_id": "Parent task not found."})
+            if parent.organization_id != org.id:
+                raise serializers.ValidationError(
+                    {"parent_task_id": "Parent task not found or does not belong to your organization."}
+                )
+            if parent.parent_task_id is not None:
+                raise serializers.ValidationError(
+                    {"parent_task_id": "Cannot nest subtasks more than one level deep."}
+                )
+            # Cannot set parent_task_id on a task that has subtasks
+            if self.instance and self.instance.subtasks.exists():
+                raise serializers.ValidationError(
+                    {"parent_task_id": "Cannot set parent on a task that already has subtasks."}
+                )
+        return data
+
     def update(self, instance, validated_data):
         tag_ids = validated_data.pop("tag_ids", None)
         client_id = validated_data.pop("client_id", None)
+        epic_id = validated_data.pop("epic_id", None)
+        parent_task_id = validated_data.pop("parent_task_id", None)
 
         if client_id is not None:
             validated_data["client_id"] = client_id
+        if epic_id is not None:
+            validated_data["epic_id"] = epic_id
+        if parent_task_id is not None:
+            validated_data["parent_task_id"] = parent_task_id
 
         from apps.tasks.services import update_task_with_version
         success, error, task = update_task_with_version(
@@ -177,10 +330,12 @@ class TaskCreateEngineerSerializer(serializers.ModelSerializer):
     tag_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, default=list
     )
+    epic_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to Epic.")
+    parent_task_id = serializers.IntegerField(required=False, allow_null=True, help_text="FK to parent Task (creates a subtask).")
 
     class Meta:
         model = Task
-        fields = ["title", "description", "priority", "deadline", "tag_ids"]
+        fields = ["title", "description", "priority", "deadline", "tag_ids", "epic_id", "parent_task_id"]
 
     def validate_tag_ids(self, value):
         if value:
@@ -189,9 +344,35 @@ class TaskCreateEngineerSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("One or more tags are invalid.")
         return value
 
+    def validate_epic_id(self, value):
+        if value:
+            org = self.context["request"].user.organization
+            if not Epic.objects.filter(pk=value, organization=org).exists():
+                raise serializers.ValidationError("Epic not found or does not belong to your organization.")
+        return value
+
+    def validate(self, data):
+        parent_task_id = data.get("parent_task_id")
+        if parent_task_id:
+            org = self.context["request"].user.organization
+            parent = _validate_subtask_constraints(data, parent_task_id)
+            if parent.organization_id != org.id:
+                raise serializers.ValidationError(
+                    {"parent_task_id": "Parent task not found or does not belong to your organization."}
+                )
+        return data
+
     @transaction.atomic
     def create(self, validated_data):
         tag_ids = validated_data.pop("tag_ids", [])
+        epic_id = validated_data.pop("epic_id", None)
+        parent_task_id = validated_data.pop("parent_task_id", None)
+
+        if epic_id:
+            validated_data["epic_id"] = epic_id
+        if parent_task_id:
+            validated_data["parent_task_id"] = parent_task_id
+
         user = self.context["request"].user
         validated_data["created_by"] = user
         validated_data["organization"] = user.organization

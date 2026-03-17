@@ -11,6 +11,8 @@ export interface Notification {
   is_read: boolean;
   task_id: number | null;
   summary_id: number | null;
+  project_id: number | null;
+  epic_id: number | null;
   created_at: string;
 }
 

@@ -54,7 +54,9 @@ Known bugs and issues are tracked in [ISSUES.md](ISSUES.md). When fixing an issu
 ## Active Technologies
 - Python 3.13 (Django 6.0 / DRF 3.16), Angular 19 (TypeScript 5.8) + Django REST Framework, djangorestframework-simplejwt, LiteLLM, Django Channels, Angular Material 19, factory-boy
 - PostgreSQL 16 (shared database, organization FK discriminator), Redis 7 (Celery broker, cache, channel layer)
+- Python 3.13, Django 6.0 / DRF 3.16 (backend); TypeScript 5.8, Angular 19 (frontend) + Django REST Framework 3.16, drf-spectacular, Angular Material 19, Angular CDK (007-work-hierarchy)
 
 ## Recent Changes
+- 007-work-hierarchy: Added 4-level work hierarchy (Project → Epic → Task → Subtask), new `projects` Django app, MatTree browser, unified creation dialog, parent breadcrumbs, hierarchy notifications
 - 006-telegram-notifications: Updated full stack — Python 3.13, Django 6.0, DRF 3.16, Angular 19, Node 22, Material 19
 - 003-multi-tenancy: Added Python 3.11+ (Django 4.2+ / DRF), Angular 17+ (TypeScript) + Django REST Framework, djangorestframework-simplejwt, LiteLLM, Django Channels, Angular Material, factory-boy

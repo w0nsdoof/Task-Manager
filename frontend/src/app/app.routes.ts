@@ -18,6 +18,16 @@ export const routes: Routes = [
         loadChildren: () => import('./features/tasks/tasks.routes').then(m => m.KANBAN_ROUTES),
       },
       {
+        path: 'projects',
+        canActivate: [managerOrEngineerGuard],
+        loadChildren: () => import('./features/projects/projects.routes').then(m => m.PROJECTS_ROUTES),
+      },
+      {
+        path: 'epics',
+        canActivate: [managerOrEngineerGuard],
+        loadChildren: () => import('./features/projects/projects.routes').then(m => m.EPIC_ROUTES),
+      },
+      {
         path: 'clients',
         canActivate: [managerGuard],
         loadChildren: () => import('./features/clients/clients.routes').then(m => m.CLIENTS_ROUTES),

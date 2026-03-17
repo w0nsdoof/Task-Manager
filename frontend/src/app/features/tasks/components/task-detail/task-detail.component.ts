@@ -11,12 +11,16 @@ import { MatTabsModule, MatTabChangeEvent } from '@angular/material/tabs';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
-import { TaskService, TaskDetail } from '../../../../core/services/task.service';
+import { TaskService, TaskDetail, TaskDetailSubtask } from '../../../../core/services/task.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { STATUS_TRANSLATION_KEYS, VALID_TRANSITIONS } from '../../../../core/constants/task-status';
+import { ParentContext } from '../../../../core/models/hierarchy.models';
 import { CommentSectionComponent } from '../comment-section/comment-section.component';
+import { CreateEntityDialogComponent } from '../create-dialog/create-entity-dialog.component';
+import { ParentBreadcrumbComponent, BreadcrumbItem } from '../../../../shared/components/parent-breadcrumb/parent-breadcrumb.component';
 
 @Component({
     selector: 'app-task-detail',
@@ -24,16 +28,26 @@ import { CommentSectionComponent } from '../comment-section/comment-section.comp
         CommonModule, RouterModule, MatCardModule, MatChipsModule,
         MatButtonModule, MatIconModule, MatListModule, MatDividerModule,
         MatTabsModule, MatProgressBarModule, MatMenuModule, MatSnackBarModule,
-        TranslateModule, CommentSectionComponent,
+        MatDialogModule, TranslateModule, CommentSectionComponent,
+        ParentBreadcrumbComponent,
     ],
     template: `
     <div *ngIf="task" class="task-detail">
+      <!-- Breadcrumb -->
+      <app-parent-breadcrumb [items]="breadcrumbItems"></app-parent-breadcrumb>
+
       <div class="detail-header">
         <div class="header-left">
           <span class="header-label">{{ 'tasks.taskTopic' | translate }}</span>
-          <h2 class="task-title">{{ task.title }}</h2>
+          <div class="title-row">
+            <h2 class="task-title">{{ task.title }}</h2>
+            <mat-chip *ngIf="task.entity_type === 'subtask'" class="entity-chip subtask-chip">Subtask</mat-chip>
+          </div>
         </div>
         <div class="header-right">
+          <button class="flat-btn-primary" *ngIf="canAddSubtask" (click)="openAddSubtaskDialog()">
+            <mat-icon>add</mat-icon> {{ 'hierarchy.addSubtask' | translate }}
+          </button>
           <mat-chip [class]="'status-' + task.status"
                     [matMenuTriggerFor]="getNextStatuses(task.status).length ? statusMenu : null"
                     [style.cursor]="getNextStatuses(task.status).length ? 'pointer' : 'default'"
@@ -113,6 +127,36 @@ import { CommentSectionComponent } from '../comment-section/comment-section.comp
       <div class="description-section flat-card">
         <h3>{{ 'tasks.description' | translate }}</h3>
         <p class="description-text">{{ task.description }}</p>
+      </div>
+
+      <!-- Subtasks -->
+      <div class="subtasks-section flat-card" *ngIf="task.subtasks && task.subtasks.length > 0">
+        <h3>Subtasks ({{ task.subtasks.length }})</h3>
+        <div class="subtask-list">
+          <div *ngFor="let sub of task.subtasks" class="subtask-item">
+            <div class="subtask-info">
+              <a [routerLink]="['/tasks', sub.id]" class="task-link">{{ sub.title }}</a>
+              <div class="subtask-meta">
+                <mat-chip [class]="'status-' + sub.status" class="mini-chip">
+                  {{ statusLabel(sub.status) }}
+                </mat-chip>
+                <mat-chip [class]="'priority-' + sub.priority" class="mini-chip">
+                  {{ translate.instant('priorities.' + sub.priority) }}
+                </mat-chip>
+                <span *ngIf="sub.deadline" class="subtask-deadline">
+                  <mat-icon class="inline-icon">event</mat-icon>
+                  {{ sub.deadline | date:'mediumDate' }}
+                </span>
+              </div>
+            </div>
+            <div class="subtask-assignees" *ngIf="sub.assignees?.length">
+              <span *ngFor="let a of sub.assignees" class="assignee-pill">
+                <span class="mini-avatar">{{ a.first_name?.charAt(0) || '' }}</span>
+                {{ a.first_name }} {{ a.last_name }}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Tabs -->
@@ -222,9 +266,54 @@ import { CommentSectionComponent } from '../comment-section/comment-section.comp
       display: inline-flex; align-items: center; justify-content: center;
       font-size: 10px; font-weight: 600;
     }
+    .title-row { display: flex; align-items: center; gap: 12px; }
+    .entity-chip { font-size: 11px !important; }
+    .subtask-chip {
+      background-color: #e0e7ff !important; color: #4338ca !important;
+    }
+
+    .hierarchy-row {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+      padding: 12px 20px;
+      background: #fafbfc;
+      border-radius: var(--border-radius-card, 12px);
+      border: 1px solid var(--border-color, #e5e7eb);
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    .hierarchy-item { display: flex; align-items: center; gap: 6px; }
+    .hierarchy-icon { font-size: 18px; width: 18px; height: 18px; color: #9ca3af; }
+    .hierarchy-label { color: var(--text-secondary, #6b7280); font-size: 13px; }
+    .hierarchy-link {
+      color: var(--primary-blue, #1a7cf4); text-decoration: none; font-weight: 500;
+    }
+    .hierarchy-link:hover { text-decoration: underline; }
+    .hierarchy-separator { font-size: 18px; width: 18px; height: 18px; color: #d1d5db; }
+
     .priority-tag { margin-bottom: 16px; }
 
     .description-section { margin-bottom: 24px; }
+
+    .subtasks-section { margin-bottom: 24px; }
+    .subtasks-section h3 { margin: 0 0 16px 0; font-size: 16px; font-weight: 600; }
+    .subtask-list { display: flex; flex-direction: column; gap: 8px; }
+    .subtask-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px;
+      background: #f8fafc;
+      border: 1px solid var(--border-color, #e5e7eb);
+      border-radius: 8px;
+      gap: 16px;
+    }
+    .subtask-info { flex: 1; }
+    .subtask-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+    .mini-chip { font-size: 11px !important; min-height: 22px !important; padding: 0 8px !important; }
+    .subtask-deadline {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 12px; color: var(--text-secondary, #6b7280);
+    }
+    .inline-icon { font-size: 14px; width: 14px; height: 14px; }
+    .subtask-assignees { display: flex; flex-wrap: wrap; gap: 6px; }
     .description-section h3 { margin: 0 0 12px 0; font-size: 16px; font-weight: 600; }
     .description-text {
       white-space: pre-wrap; line-height: 1.7; color: var(--text-primary, #1a1a1a);
@@ -264,7 +353,9 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
   task: TaskDetail | null = null;
   isManager = false;
   canEdit = false;
+  canAddSubtask = false;
   canViewHistory = false;
+  breadcrumbItems: BreadcrumbItem[] = [];
   attachments: any[] = [];
   history: any[] = [];
   historyLoaded = false;
@@ -281,6 +372,7 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     private taskService: TaskService,
     private authService: AuthService,
     private snackBar: MatSnackBar,
+    private dialog: MatDialog,
     private cdr: ChangeDetectorRef,
     public translate: TranslateService,
   ) {}
@@ -289,6 +381,27 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
     this.isManager = this.authService.hasRole('manager');
     this.canViewHistory = this.authService.hasAnyRole('manager', 'engineer');
     this.taskId = +this.route.snapshot.params['id'];
+    this.loadTask();
+  }
+
+  openAddSubtaskDialog(): void {
+    if (!this.task) return;
+    const parentContext: ParentContext = {
+      parentType: 'task',
+      parentId: this.task.id,
+    };
+    const dialogRef = this.dialog.open(CreateEntityDialogComponent, {
+      width: '600px',
+      data: parentContext,
+    });
+    dialogRef.afterClosed().pipe(takeUntil(this.destroy$)).subscribe((result) => {
+      if (result) {
+        this.loadTask();
+      }
+    });
+  }
+
+  private loadTask(): void {
     this.taskService.get(this.taskId).pipe(takeUntil(this.destroy$)).subscribe((task) => {
       this.task = task;
       const currentUserId = this.authService.getCurrentUser()?.id;
@@ -296,6 +409,9 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         this.authService.hasRole('engineer') &&
         task.assignees.some(a => a.id == currentUserId)
       );
+      // Can add subtask only for non-subtask tasks (entity_type !== 'subtask')
+      this.canAddSubtask = task.entity_type !== 'subtask' && this.authService.hasAnyRole('manager', 'engineer');
+      this.buildBreadcrumb();
       this.cdr.markForCheck();
     });
     this.loadAttachments();
@@ -404,6 +520,29 @@ export class TaskDetailComponent implements OnInit, OnDestroy {
         this.attachments = res.results;
         this.cdr.markForCheck();
       });
+  }
+
+  private buildBreadcrumb(): void {
+    const items: BreadcrumbItem[] = [];
+    if (this.task?.epic?.project) {
+      items.push({
+        label: this.task.epic.project.title,
+        route: ['/projects', String(this.task.epic.project.id)],
+      });
+    }
+    if (this.task?.epic) {
+      items.push({
+        label: this.task.epic.title,
+        route: ['/epics', String(this.task.epic.id)],
+      });
+    }
+    if (this.task?.parent_task) {
+      items.push({
+        label: this.task.parent_task.title,
+        route: ['/tasks', String(this.task.parent_task.id)],
+      });
+    }
+    this.breadcrumbItems = items;
   }
 
   private loadHistory(): void {

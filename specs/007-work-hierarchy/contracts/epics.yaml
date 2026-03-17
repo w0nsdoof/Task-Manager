@@ -1,0 +1,274 @@
+# API Contract: Epic Endpoints
+# Auto-generated from plan; actual OpenAPI is produced by drf-spectacular.
+
+paths:
+
+  /api/epics/:
+    get:
+      summary: List epics
+      description: |
+        Returns paginated list of epics for the current organization.
+        Supports filtering by project, standalone status, and standard filters.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: project
+          in: query
+          description: Filter by parent project ID
+          schema: { type: integer }
+        - name: standalone
+          in: query
+          description: "true = epics with no parent project"
+          schema: { type: boolean }
+        - name: status
+          in: query
+          schema: { type: string, enum: [created, in_progress, waiting, done, archived] }
+        - name: priority
+          in: query
+          schema: { type: string, enum: [low, medium, high, critical] }
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: ordering
+          in: query
+          schema: { type: string, default: "-created_at" }
+      responses:
+        200:
+          description: Paginated epic list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  next: { type: string, nullable: true }
+                  previous: { type: string, nullable: true }
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EpicListItem'
+
+    post:
+      summary: Create epic
+      description: |
+        Managers and engineers can create epics.
+        Managers can set assignee and client. Engineers cannot.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EpicCreatePayload'
+      responses:
+        201:
+          description: Epic created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpicDetail'
+
+  /api/epics/{id}/:
+    get:
+      summary: Get epic detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpicDetail'
+
+    patch:
+      summary: Update epic
+      description: |
+        Managers can edit any epic. Engineers can edit only epics assigned to them.
+        Uses optimistic locking (version field).
+        Only managers can change the parent project (re-parenting).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EpicUpdatePayload'
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpicDetail'
+        409:
+          description: Version conflict
+
+    delete:
+      summary: Delete epic
+      description: |
+        Manager-only. Deletes the epic.
+        Child tasks become orphaned (epic FK set to NULL via SET_NULL).
+      responses:
+        204:
+          description: Epic deleted
+        403:
+          description: Only managers can delete epics
+
+  /api/epics/{id}/status/:
+    post:
+      summary: Change epic status
+      description: Manager-only. All transitions allowed (unrestricted).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [created, in_progress, waiting, done, archived]
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  status: { type: string }
+                  previous_status: { type: string }
+                  changed_by: { type: string }
+                  changed_at: { type: string, format: date-time }
+
+  /api/epics/{id}/tasks/:
+    get:
+      summary: List tasks under an epic
+      description: Returns paginated top-level tasks (not subtasks) belonging to this epic.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskListItem'
+
+  /api/epics/{id}/history/:
+    get:
+      summary: Get epic audit history
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEntry'
+
+components:
+  schemas:
+    EpicListItem:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        status: { type: string }
+        priority: { type: string, nullable: true }
+        deadline: { type: string, format: date-time, nullable: true }
+        project:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            title: { type: string }
+        assignee:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            first_name: { type: string }
+            last_name: { type: string }
+        client:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              color: { type: string }
+        tasks_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    EpicDetail:
+      allOf:
+        - $ref: '#/components/schemas/EpicListItem'
+        - type: object
+          properties:
+            description: { type: string }
+            created_by:
+              type: object
+              properties:
+                id: { type: integer }
+                first_name: { type: string }
+                last_name: { type: string }
+            version: { type: integer }
+
+    EpicCreatePayload:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 255 }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        deadline: { type: string, format: date-time }
+        project_id: { type: integer, nullable: true, description: "Optional parent project" }
+        assignee_id: { type: integer, nullable: true, description: "Manager-only field" }
+        client_id: { type: integer, nullable: true, description: "Manager-only field" }
+        tag_ids:
+          type: array
+          items: { type: integer }
+
+    EpicUpdatePayload:
+      type: object
+      properties:
+        title: { type: string, maxLength: 255 }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        deadline: { type: string, format: date-time }
+        project_id: { type: integer, nullable: true, description: "Manager-only (re-parenting)" }
+        assignee_id: { type: integer, nullable: true }
+        client_id: { type: integer, nullable: true }
+        tag_ids:
+          type: array
+          items: { type: integer }
+        version: { type: integer }
+
+    # Shared references (defined in projects.yaml)
+    TaskListItem:
+      description: "See tasks.yaml for full schema"
+    AuditEntry:
+      description: "See projects.yaml for full schema"

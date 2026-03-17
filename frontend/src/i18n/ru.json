@@ -63,7 +63,8 @@
     "notifications": "Уведомления",
     "markAllRead": "Прочитать все",
     "noNotifications": "Нет уведомлений",
-    "settings": "Настройки"
+    "settings": "Настройки",
+    "projects": "Проекты"
   },
   "tasks": {
     "title": "Задачи",
@@ -116,6 +117,26 @@
     "title": "Канбан-доска",
     "moveTo": "Переместить в",
     "invalidTransition": "Недопустимый переход"
+  },
+  "projects": {
+    "title": "Проекты",
+    "add": "Добавить",
+    "searchProjects": "Поиск проектов...",
+    "assignee": "Ответственный",
+    "epicsCount": "Эпики",
+    "noProjects": "Проекты не найдены.",
+    "failedChangeStatus": "Не удалось изменить статус",
+    "epics": "Эпики",
+    "addEpic": "Добавить эпик",
+    "noEpics": "Нет эпиков.",
+    "tasksLabel": "задач"
+  },
+  "epics": {
+    "title": "Эпики",
+    "project": "Проект",
+    "tasks": "Задачи",
+    "addTask": "Добавить задачу",
+    "noTasks": "Нет задач."
   },
   "clients": {
     "title": "Клиенты",
@@ -335,6 +356,22 @@
     "notificationsToggled": "Уведомления в Telegram обновлены",
     "codeFallbackHint": "Если ссылка не сработала автоматически, скопируйте этот код и отправьте его боту:",
     "codeCopied": "Код скопирован"
+  },
+  "hierarchy": {
+    "project": "Проект",
+    "epic": "Эпик",
+    "task": "Задача",
+    "subtask": "Подзадача",
+    "selectType": "Выберите тип",
+    "parentProject": "Родительский проект",
+    "parentEpic": "Родительский эпик",
+    "parentTask": "Родительская задача",
+    "createEntity": "Создать",
+    "cascadeProject": "Проект (через эпик)",
+    "addProject": "Добавить проект",
+    "addEpic": "Добавить эпик",
+    "addTask": "Добавить задачу",
+    "addSubtask": "Добавить подзадачу"
   },
   "language": {
     "en": "English",

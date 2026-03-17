@@ -69,6 +69,7 @@ describe('LayoutComponent', () => {
       const keys = component.filteredNavItems.map((i) => i.labelKey);
       expect(keys).toContain('nav.tasks');
       expect(keys).toContain('nav.archive');
+      expect(keys).toContain('nav.projects');
       expect(keys).toContain('nav.kanban');
       expect(keys).toContain('nav.companies');
       expect(keys).toContain('nav.calendar');
@@ -81,7 +82,7 @@ describe('LayoutComponent', () => {
       setupWithRole('engineer');
 
       const keys = component.filteredNavItems.map((i) => i.labelKey);
-      expect(keys).toEqual(['nav.tasks', 'nav.archive', 'nav.kanban', 'nav.analytics']);
+      expect(keys).toEqual(['nav.tasks', 'nav.archive', 'nav.projects', 'nav.kanban', 'nav.analytics']);
     });
 
     it('should show only My Tickets for client', () => {

@@ -8,6 +8,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { Subject, takeUntil } from 'rxjs';
 import { TaskService, TaskListItem, PaginatedResponse, TaskFilters } from '../../../../core/services/task.service';
@@ -15,13 +16,19 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { STATUS_TRANSLATION_KEYS, VALID_TRANSITIONS } from '../../../../core/constants/task-status';
 import { SearchBarComponent } from '../../../../shared/components/search-bar/search-bar.component';
 import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.component';
+import { CreateEntityDialogComponent } from '../create-dialog/create-entity-dialog.component';
+
+export interface DisplayRow extends TaskListItem {
+  _isSubtaskRow?: boolean;
+  _parentId?: number;
+}
 
 @Component({
     selector: 'app-task-list',
     imports: [
         CommonModule, RouterModule, MatTableModule, MatButtonModule,
         MatIconModule, MatChipsModule, MatPaginatorModule, MatMenuModule, MatSnackBarModule,
-        SearchBarComponent, FilterPanelComponent, TranslateModule,
+        MatDialogModule, SearchBarComponent, FilterPanelComponent, TranslateModule,
     ],
     template: `
     <div class="page-header">
@@ -37,7 +44,7 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
             {{ 'tasks.kanban' | translate }}
           </button>
         </div>
-        <button class="flat-btn-primary" routerLink="new" *ngIf="canCreate">
+        <button class="flat-btn-primary" (click)="openCreateDialog()" *ngIf="canCreate">
           <mat-icon>add</mat-icon> {{ 'tasks.add' | translate }}
         </button>
       </div>
@@ -65,11 +72,20 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
     <app-search-bar [placeholder]="'tasks.searchTasks' | translate" (search)="onSearch($event)"></app-search-bar>
     <app-filter-panel [showStatus]="false" (filtersChange)="onFiltersChange($event)"></app-filter-panel>
 
-    <table mat-table [dataSource]="tasks" class="full-width">
+    <table mat-table [dataSource]="computedRows" class="full-width">
       <ng-container matColumnDef="title">
         <th mat-header-cell *matHeaderCellDef>{{ 'tasks.taskTitle' | translate }}</th>
-        <td mat-cell *matCellDef="let task">
-          <a [routerLink]="[task.id]" class="task-link">{{ task.title }}</a>
+        <td mat-cell *matCellDef="let task" [style.padding-left]="task._isSubtaskRow ? '48px' : ''">
+          <div class="title-cell">
+            <button *ngIf="task.subtasks_count > 0 && !task._isSubtaskRow"
+                    class="expand-btn"
+                    (click)="toggleExpand(task, $event)">
+              <mat-icon>{{ isExpanded(task.id) ? 'expand_more' : 'chevron_right' }}</mat-icon>
+            </button>
+            <span *ngIf="!task.subtasks_count && !task._isSubtaskRow" class="expand-spacer"></span>
+            <mat-chip *ngIf="task._isSubtaskRow" class="subtask-chip">Subtask</mat-chip>
+            <a [routerLink]="['/tasks', task.id]" class="task-link">{{ task.title }}</a>
+          </div>
         </td>
       </ng-container>
 
@@ -181,6 +197,24 @@ import { FilterPanelComponent, FilterState } from '../filter-panel/filter-panel.
       display: inline-flex; align-items: center; justify-content: center;
       font-size: 11px; font-weight: 600; flex-shrink: 0;
     }
+    .title-cell {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .expand-btn {
+      background: none; border: none; cursor: pointer; padding: 2px;
+      border-radius: 4px; display: inline-flex; align-items: center;
+      color: var(--text-secondary, #6b7280); flex-shrink: 0;
+    }
+    .expand-btn:hover { background: #f0f0f0; }
+    .expand-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
+    .expand-spacer { width: 24px; flex-shrink: 0; }
+    .subtask-chip {
+      font-size: 10px !important; min-height: 20px !important;
+      padding: 0 8px !important;
+      background-color: #e0e7ff !important; color: #4338ca !important;
+      flex-shrink: 0;
+    }
+    :host ::ng-deep .subtask-row { background: #f8fafc; }
   `],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -193,6 +227,8 @@ export class TaskListComponent implements OnInit, OnDestroy {
   canCreate = false;
   statusFilter: string | undefined = undefined;
   displayedColumns = ['title', 'status', 'priority', 'assignees', 'client', 'tags', 'deadline'];
+  expandedTasks = new Map<number, TaskListItem[]>();
+  computedRows: DisplayRow[] = [];
   private searchTerm = '';
   private activeFilters: FilterState = {};
   private destroy$ = new Subject<void>();
@@ -201,6 +237,7 @@ export class TaskListComponent implements OnInit, OnDestroy {
     private taskService: TaskService,
     private authService: AuthService,
     private snackBar: MatSnackBar,
+    private dialog: MatDialog,
     private cdr: ChangeDetectorRef,
     private translate: TranslateService,
   ) {}
@@ -209,6 +246,18 @@ export class TaskListComponent implements OnInit, OnDestroy {
     this.isManager = this.authService.hasRole('manager');
     this.canCreate = this.authService.hasAnyRole('manager', 'engineer');
     this.loadTasks();
+  }
+
+  openCreateDialog(): void {
+    const dialogRef = this.dialog.open(CreateEntityDialogComponent, {
+      width: '600px',
+      data: null,
+    });
+    dialogRef.afterClosed().pipe(takeUntil(this.destroy$)).subscribe((result) => {
+      if (result) {
+        this.loadTasks();
+      }
+    });
   }
 
   loadTasks(): void {
@@ -226,6 +275,43 @@ export class TaskListComponent implements OnInit, OnDestroy {
     this.taskService.list(filters).pipe(takeUntil(this.destroy$)).subscribe((res) => {
       this.tasks = res.results;
       this.totalCount = res.count;
+      this.expandedTasks.clear();
+      this.rebuildRows();
+      this.cdr.markForCheck();
+    });
+  }
+
+  private rebuildRows(): void {
+    const rows: DisplayRow[] = [];
+    for (const task of this.tasks) {
+      rows.push(task as DisplayRow);
+      if (this.expandedTasks.has(task.id)) {
+        const subtasks = this.expandedTasks.get(task.id) || [];
+        for (const sub of subtasks) {
+          rows.push({ ...sub, _isSubtaskRow: true, _parentId: task.id } as DisplayRow);
+        }
+      }
+    }
+    this.computedRows = rows;
+  }
+
+  isExpanded(taskId: number): boolean {
+    return this.expandedTasks.has(taskId);
+  }
+
+  toggleExpand(task: TaskListItem, event: Event): void {
+    event.stopPropagation();
+    if (this.expandedTasks.has(task.id)) {
+      this.expandedTasks.delete(task.id);
+      this.rebuildRows();
+      this.cdr.markForCheck();
+      return;
+    }
+    this.taskService.getSubtasks(task.id).pipe(
+      takeUntil(this.destroy$),
+    ).subscribe((res) => {
+      this.expandedTasks.set(task.id, res.results);
+      this.rebuildRows();
       this.cdr.markForCheck();
     });
   }

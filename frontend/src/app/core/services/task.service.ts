@@ -16,6 +16,19 @@ export interface TaskListItem {
   tags: { id: number; name: string; slug: string; color: string }[];
   comments_count: number;
   attachments_count: number;
+  entity_type: string;
+  epic: { id: number; title: string } | null;
+  parent_task: { id: number; title: string } | null;
+  subtasks_count: number;
+}
+
+export interface TaskDetailSubtask {
+  id: number;
+  title: string;
+  status: string;
+  priority: string;
+  deadline: string | null;
+  assignees: { id: number; first_name: string; last_name: string }[];
 }
 
 export interface TaskDetail extends TaskListItem {
@@ -25,16 +38,20 @@ export interface TaskDetail extends TaskListItem {
   attachments: any[];
   history: any[];
   version: number;
+  epic: { id: number; title: string; project?: { id: number; title: string } | null } | null;
+  subtasks: TaskDetailSubtask[];
 }
 
 export interface TaskCreatePayload {
   title: string;
-  description: string;
-  priority: string;
-  deadline: string;
+  description?: string;
+  priority?: string;
+  deadline?: string;
   client_id?: number | null;
   assignee_ids?: number[];
   tag_ids?: number[];
+  epic_id?: number | null;
+  parent_task_id?: number | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -56,6 +73,10 @@ export interface TaskFilters {
   tags?: string;
   search?: string;
   ordering?: string;
+  parent_task?: number;
+  epic?: number;
+  entity_type?: string;
+  include_subtasks?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -118,5 +139,11 @@ export class TaskService {
 
   deleteAttachment(taskId: number, attachmentId: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${taskId}/attachments/${attachmentId}/`);
+  }
+
+  getSubtasks(taskId: number, page = 1): Observable<PaginatedResponse<TaskListItem>> {
+    return this.http.get<PaginatedResponse<TaskListItem>>(`${this.baseUrl}/${taskId}/subtasks/`, {
+      params: { page: String(page) },
+    });
   }
 }
