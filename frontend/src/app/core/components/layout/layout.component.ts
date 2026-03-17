@@ -21,6 +21,7 @@ interface NavItem {
   icon: string;
   route: string;
   roles: string[];
+  exact?: boolean;
 }
 
 @Component({
@@ -53,6 +54,7 @@ interface NavItem {
           <a *ngFor="let item of filteredNavItems"
              [routerLink]="item.route"
              routerLinkActive="active"
+             [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
              class="nav-item"
              [title]="sidebarCollapsed ? (item.labelKey | translate) : ''">
             <mat-icon class="nav-icon">{{ item.icon }}</mat-icon>
@@ -332,8 +334,9 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   private navItems: NavItem[] = [
     { labelKey: 'nav.organizations', icon: 'corporate_fare', route: '/platform/organizations', roles: ['superadmin'] },
-    { labelKey: 'nav.tasks', icon: 'table_chart', route: '/tasks', roles: ['manager', 'engineer'] },
-    { labelKey: 'nav.archive', icon: 'archive', route: '/tasks/archive', roles: ['manager', 'engineer'] },
+    { labelKey: 'nav.tasks', icon: 'table_chart', route: '/tasks', roles: ['manager', 'engineer'], exact: true },
+    { labelKey: 'nav.archive', icon: 'archive', route: '/tasks/archive', roles: ['manager', 'engineer'], exact: true },
+    { labelKey: 'nav.projects', icon: 'folder', route: '/projects', roles: ['manager', 'engineer'] },
     { labelKey: 'nav.kanban', icon: 'view_kanban', route: '/kanban', roles: ['manager', 'engineer'] },
     { labelKey: 'nav.companies', icon: 'apartment', route: '/clients', roles: ['manager'] },
     { labelKey: 'nav.calendar', icon: 'calendar_today', route: '/calendar', roles: ['manager'] },
@@ -348,6 +351,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
     '/tasks/archive': 'nav.archive',
     '/tasks/new': 'tasks.createTask',
     '/kanban': 'nav.kanban',
+    '/projects': 'nav.projects',
     '/clients': 'nav.companies',
     '/calendar': 'nav.calendar',
     '/reports': 'nav.analytics',
@@ -421,6 +425,10 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
     if (notif.type === 'summary_ready' && notif.summary_id) {
       this.router.navigate(['/reports/summaries', notif.summary_id]);
+    } else if (notif.type === 'project_assigned' && notif.project_id) {
+      this.router.navigate(['/projects', notif.project_id]);
+    } else if (notif.type === 'epic_assigned' && notif.epic_id) {
+      this.router.navigate(['/epics', notif.epic_id]);
     } else if (notif.task_id) {
       this.router.navigate(['/tasks', notif.task_id]);
     }
@@ -442,6 +450,8 @@ export class LayoutComponent implements OnInit, OnDestroy {
       case 'mention': return 'alternate_email';
       case 'status_changed': return 'sync_alt';
       case 'deadline_warning': return 'warning';
+      case 'project_assigned': return 'folder';
+      case 'epic_assigned': return 'account_tree';
       default: return 'notifications';
     }
   }
@@ -466,6 +476,10 @@ export class LayoutComponent implements OnInit, OnDestroy {
       // Fallback for task detail/edit routes
       if (url.match(/^\/tasks\/\d+/)) {
         this.pageTitle = this.translate.instant('nav.tasks');
+      } else if (url.match(/^\/projects\/\d+/)) {
+        this.pageTitle = this.translate.instant('nav.projects');
+      } else if (url.match(/^\/epics\/\d+/)) {
+        this.pageTitle = this.translate.instant('nav.projects');
       } else if (url.match(/^\/clients\/\d+/)) {
         this.pageTitle = this.translate.instant('nav.companies');
       } else if (url.startsWith('/reports')) {

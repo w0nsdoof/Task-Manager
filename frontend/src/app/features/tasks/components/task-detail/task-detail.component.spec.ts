@@ -20,9 +20,11 @@ describe('TaskDetailComponent', () => {
     id: 1, title: 'Test Task', status: 'created', priority: 'high',
     deadline: '2025-12-31', created_at: '', updated_at: '',
     client: null, assignees: [], tags: [], comments_count: 0, attachments_count: 0,
+    entity_type: 'task', epic: null, parent_task: null, subtasks_count: 0,
     description: 'A test task',
     created_by: { id: 1, first_name: 'A', last_name: 'B' },
     comments: [], attachments: [], history: [], version: 1,
+    subtasks: [],
   };
 
   const mockAttachmentsPage = {

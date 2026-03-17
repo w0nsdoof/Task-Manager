@@ -1,11 +1,13 @@
 from apps.notifications.models import Notification
 
 
-def create_notification(recipient, event_type, task, message, related_object_id=None, actor=None):
+def create_notification(recipient, event_type, task=None, message="", related_object_id=None, actor=None, project=None, epic=None):
     notification = Notification.objects.create(
         recipient=recipient,
         event_type=event_type,
         task=task,
+        project=project,
+        epic=epic,
         message=message,
         related_object_id=related_object_id,
     )
@@ -14,7 +16,13 @@ def create_notification(recipient, event_type, task, message, related_object_id=
     if actor is None or recipient.pk != actor.pk:
         from apps.telegram.tasks import send_telegram_notification
 
-        task_title = task.title if task else None
-        send_telegram_notification.delay(recipient.pk, message, task_title)
+        title = None
+        if task:
+            title = task.title
+        elif project:
+            title = project.title
+        elif epic:
+            title = epic.title
+        send_telegram_notification.delay(recipient.pk, message, title)
 
     return notification

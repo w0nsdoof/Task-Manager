@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "apps.attachments",
     "apps.notifications",
     "apps.reports",
+    "apps.projects",
     "apps.audit",
     "apps.ai_summaries",
     "apps.telegram",
@@ -188,7 +189,9 @@ SPECTACULAR_SETTINGS = {
     "TAGS": [
         {"name": "Auth", "description": "JWT authentication (login, refresh, logout, verify)"},
         {"name": "Users", "description": "User management (CRUD, role assignment). Manager-only."},
-        {"name": "Tasks", "description": "Task CRUD, status transitions, assignment, and audit history"},
+        {"name": "Projects", "description": "Project CRUD, status transitions, and child epics"},
+        {"name": "Epics", "description": "Epic CRUD, status transitions, child tasks, and project linking"},
+        {"name": "Tasks", "description": "Task CRUD, status transitions, assignment, subtasks, and audit history"},
         {"name": "Clients", "description": "Client company management"},
         {"name": "Portal", "description": "Client portal — read-only tickets for client-role users"},
         {"name": "Comments", "description": "Task comments with @mention support"},

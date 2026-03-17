@@ -22,6 +22,7 @@ describe('TaskListComponent', () => {
     deadline: '2025-12-31', created_at: '', updated_at: '',
     client: { id: 1, name: 'Client A' }, assignees: [], tags: [],
     comments_count: 0, attachments_count: 0,
+    entity_type: 'task', epic: null, parent_task: null, subtasks_count: 0,
   };
 
   const mockResponse: PaginatedResponse<TaskListItem> = {

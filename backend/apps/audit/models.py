@@ -11,7 +11,13 @@ class AuditLogEntry(models.Model):
         ASSIGNMENT_CHANGE = "assignment_change", "Assignment Change"
 
     task = models.ForeignKey(
-        "tasks.Task", on_delete=models.CASCADE, related_name="audit_log"
+        "tasks.Task", on_delete=models.CASCADE, null=True, blank=True, related_name="audit_log"
+    )
+    project = models.ForeignKey(
+        "projects.Project", on_delete=models.CASCADE, null=True, blank=True, related_name="audit_log"
+    )
+    epic = models.ForeignKey(
+        "projects.Epic", on_delete=models.CASCADE, null=True, blank=True, related_name="audit_log"
     )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,

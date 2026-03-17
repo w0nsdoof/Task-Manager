@@ -17,12 +17,28 @@ class Task(models.Model):
         ARCHIVED = "archived", "Archived"
 
     title = models.CharField(max_length=255)
-    description = models.TextField()
-    priority = models.CharField(max_length=10, choices=Priority.choices, db_index=True)
+    description = models.TextField(blank=True, default="")
+    priority = models.CharField(max_length=10, choices=Priority.choices, blank=True, default="medium", db_index=True)
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.CREATED, db_index=True
     )
-    deadline = models.DateTimeField()
+    deadline = models.DateTimeField(null=True, blank=True)
+    epic = models.ForeignKey(
+        "projects.Epic",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tasks",
+        db_index=True,
+    )
+    parent_task = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subtasks",
+        db_index=True,
+    )
     client = models.ForeignKey(
         "clients.Client",
         on_delete=models.SET_NULL,
@@ -58,7 +74,13 @@ class Task(models.Model):
             models.Index(fields=["created_at"], name="ix_task_created_at"),
             models.Index(fields=["status", "priority"], name="ix_task_status_priority"),
             models.Index(fields=["status", "deadline"], name="ix_task_status_deadline"),
+            models.Index(fields=["organization", "epic"], name="ix_task_org_epic"),
+            models.Index(fields=["organization", "parent_task"], name="ix_task_org_parent"),
         ]
+
+    @property
+    def entity_type(self) -> str:
+        return "subtask" if self.parent_task_id else "task"
 
     def __str__(self):
         return self.title

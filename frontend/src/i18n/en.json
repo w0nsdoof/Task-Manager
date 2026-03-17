@@ -63,7 +63,8 @@
     "notifications": "Notifications",
     "markAllRead": "Mark all read",
     "noNotifications": "No notifications",
-    "settings": "Settings"
+    "settings": "Settings",
+    "projects": "Projects"
   },
   "tasks": {
     "title": "Tasks",
@@ -116,6 +117,26 @@
     "title": "Kanban Board",
     "moveTo": "Move to",
     "invalidTransition": "Invalid transition"
+  },
+  "projects": {
+    "title": "Projects",
+    "add": "Add",
+    "searchProjects": "Search projects...",
+    "assignee": "Assignee",
+    "epicsCount": "Epics",
+    "noProjects": "No projects found.",
+    "failedChangeStatus": "Failed to change status",
+    "epics": "Epics",
+    "addEpic": "Add Epic",
+    "noEpics": "No epics yet.",
+    "tasksLabel": "tasks"
+  },
+  "epics": {
+    "title": "Epics",
+    "project": "Project",
+    "tasks": "Tasks",
+    "addTask": "Add Task",
+    "noTasks": "No tasks yet."
   },
   "clients": {
     "title": "Clients",
@@ -335,6 +356,22 @@
     "notificationsToggled": "Telegram notifications updated",
     "codeFallbackHint": "If the link didn't open automatically, copy this code and paste it to the bot:",
     "codeCopied": "Code copied to clipboard"
+  },
+  "hierarchy": {
+    "project": "Project",
+    "epic": "Epic",
+    "task": "Task",
+    "subtask": "Subtask",
+    "selectType": "Select entity type",
+    "parentProject": "Parent Project",
+    "parentEpic": "Parent Epic",
+    "parentTask": "Parent Task",
+    "createEntity": "Create",
+    "cascadeProject": "Project (via Epic)",
+    "addProject": "Add Project",
+    "addEpic": "Add Epic",
+    "addTask": "Add Task",
+    "addSubtask": "Add Subtask"
   },
   "language": {
     "en": "English",

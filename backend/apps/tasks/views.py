@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.utils import timezone
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -38,8 +38,13 @@ from apps.tasks.services import MANAGER_ONLY_TRANSITIONS, apply_status_change
         tags=["Tasks"],
         summary="List tasks",
         description=(
-            "Paginated task list. By default excludes archived and done+expired tasks. "
-            "Use ?status=archived to view archived tasks."
+            "Paginated task list. By default excludes archived and done+expired tasks, "
+            "and shows only top-level tasks (no subtasks). "
+            "Use ?status=archived to view archived tasks. "
+            "Use ?include_subtasks=true to include subtasks in results. "
+            "Use ?parent_task=<id> to list subtasks of a specific task. "
+            "Use ?epic=<id> to filter by epic. "
+            "Use ?entity_type=task|subtask to filter by type."
         ),
         parameters=[
             OpenApiParameter("assignee", type=int, description="Filter by assignee user ID"),
@@ -50,6 +55,16 @@ from apps.tasks.services import MANAGER_ONLY_TRANSITIONS, apply_status_change
                 "status", type=str,
                 enum=["created", "in_progress", "waiting", "done", "archived"],
                 description="Filter by status. 'archived' also includes done+expired tasks.",
+            ),
+            OpenApiParameter("parent_task", type=int, description="Filter to subtasks of a specific parent task ID"),
+            OpenApiParameter("epic", type=int, description="Filter by epic ID"),
+            OpenApiParameter(
+                "entity_type", type=str, enum=["task", "subtask"],
+                description="Filter by entity type (task or subtask)",
+            ),
+            OpenApiParameter(
+                "include_subtasks", type=bool,
+                description="If true, include subtasks in results (default: false, only top-level tasks)",
             ),
         ],
     ),
@@ -87,13 +102,22 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        qs = qs.select_related("client", "created_by").prefetch_related(
-            "assignees", "tags"
-        )
+        qs = qs.select_related(
+            "client", "created_by", "epic", "epic__project", "parent_task",
+        ).prefetch_related("assignees", "tags")
+
         if self.action == "list":
             qs = qs.annotate(
                 comments_count=Count("comments", distinct=True),
                 attachments_count=Count("attachments", distinct=True),
+                subtasks_count=Count("subtasks", distinct=True),
+            )
+        elif self.action == "retrieve":
+            qs = qs.prefetch_related(
+                Prefetch(
+                    "subtasks",
+                    queryset=Task.objects.prefetch_related("assignees"),
+                ),
             )
 
         user = self.request.user
@@ -116,6 +140,26 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
         deadline_to = self.request.query_params.get("deadline_to")
         if deadline_to:
             qs = qs.filter(deadline__lte=deadline_to)
+
+        # Hierarchy filtering (list action only)
+        if self.action == "list":
+            parent_task_param = self.request.query_params.get("parent_task")
+            epic_param = self.request.query_params.get("epic")
+            entity_type_param = self.request.query_params.get("entity_type")
+            include_subtasks = self.request.query_params.get("include_subtasks", "").lower() == "true"
+
+            if parent_task_param:
+                qs = qs.filter(parent_task_id=parent_task_param)
+            elif entity_type_param == "subtask":
+                qs = qs.filter(parent_task__isnull=False)
+            elif entity_type_param == "task":
+                qs = qs.filter(parent_task__isnull=True)
+            elif not include_subtasks:
+                # Default: show only top-level tasks
+                qs = qs.filter(parent_task__isnull=True)
+
+            if epic_param:
+                qs = qs.filter(epic_id=epic_param)
 
         # Status filtering with archive logic:
         # - ?status=archived: show archived AND done+expired tasks
@@ -357,3 +401,23 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
             for e in page
         ]
         return self.get_paginated_response(data)
+
+    @extend_schema(
+        tags=["Tasks"],
+        summary="List subtasks of a task",
+        description="Returns paginated list of subtasks for the given parent task.",
+        responses={200: TaskListSerializer(many=True)},
+    )
+    @action(detail=True, methods=["get"], url_path="subtasks")
+    def subtasks(self, request, pk=None):
+        task = self.get_object()
+        qs = Task.objects.filter(
+            parent_task=task,
+            organization=request.user.organization,
+        ).select_related("client", "created_by").prefetch_related("assignees", "tags").annotate(
+            comments_count=Count("comments", distinct=True),
+            attachments_count=Count("attachments", distinct=True),
+        ).order_by("-created_at")
+        page = self.paginate_queryset(qs)
+        serializer = TaskListSerializer(page, many=True)
+        return self.get_paginated_response(serializer.data)

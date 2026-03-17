@@ -1,0 +1,272 @@
+# API Contract: Project Endpoints
+# Auto-generated from plan; actual OpenAPI is produced by drf-spectacular.
+
+paths:
+
+  /api/projects/:
+    get:
+      summary: List projects
+      description: |
+        Returns paginated list of projects for the current organization.
+        Managers and engineers can view; clients have no access.
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [created, in_progress, waiting, done, archived] }
+        - name: priority
+          in: query
+          schema: { type: string, enum: [low, medium, high, critical] }
+        - name: search
+          in: query
+          description: Search by title, description
+          schema: { type: string }
+        - name: ordering
+          in: query
+          schema: { type: string, default: "-created_at" }
+        - name: client
+          in: query
+          schema: { type: integer }
+      responses:
+        200:
+          description: Paginated project list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  next: { type: string, nullable: true }
+                  previous: { type: string, nullable: true }
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectListItem'
+
+    post:
+      summary: Create project
+      description: Manager-only. Creates a new project.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreatePayload'
+      responses:
+        201:
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+        403:
+          description: Only managers can create projects
+
+  /api/projects/{id}/:
+    get:
+      summary: Get project detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+
+    patch:
+      summary: Update project
+      description: |
+        Manager-only. Supports partial updates.
+        Uses optimistic locking (version field).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdatePayload'
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+        409:
+          description: Version conflict (optimistic locking)
+
+    delete:
+      summary: Delete project
+      description: |
+        Manager-only. Deletes the project.
+        Child epics become orphaned (project FK set to NULL via SET_NULL).
+      responses:
+        204:
+          description: Project deleted
+        403:
+          description: Only managers can delete projects
+
+  /api/projects/{id}/status/:
+    post:
+      summary: Change project status
+      description: Manager-only. All transitions allowed (unrestricted).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [created, in_progress, waiting, done, archived]
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  status: { type: string }
+                  previous_status: { type: string }
+                  changed_by: { type: string }
+                  changed_at: { type: string, format: date-time }
+
+  /api/projects/{id}/epics/:
+    get:
+      summary: List epics under a project
+      description: Returns paginated epics belonging to this project.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EpicListItem'
+
+  /api/projects/{id}/history/:
+    get:
+      summary: Get project audit history
+      description: Managers and engineers only. Paginated.
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEntry'
+
+components:
+  schemas:
+    ProjectListItem:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        status: { type: string }
+        priority: { type: string, nullable: true }
+        deadline: { type: string, format: date-time, nullable: true }
+        assignee:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            first_name: { type: string }
+            last_name: { type: string }
+        client:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        tags:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              color: { type: string }
+        epics_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProjectListItem'
+        - type: object
+          properties:
+            description: { type: string }
+            created_by:
+              type: object
+              properties:
+                id: { type: integer }
+                first_name: { type: string }
+                last_name: { type: string }
+            version: { type: integer }
+
+    ProjectCreatePayload:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 255 }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        deadline: { type: string, format: date-time }
+        assignee_id: { type: integer, nullable: true }
+        client_id: { type: integer, nullable: true }
+        tag_ids:
+          type: array
+          items: { type: integer }
+
+    ProjectUpdatePayload:
+      type: object
+      properties:
+        title: { type: string, maxLength: 255 }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        deadline: { type: string, format: date-time }
+        assignee_id: { type: integer, nullable: true }
+        client_id: { type: integer, nullable: true }
+        tag_ids:
+          type: array
+          items: { type: integer }
+        version: { type: integer, description: "Required for optimistic locking" }
+
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        action: { type: string }
+        field_name: { type: string }
+        old_value: { type: string }
+        new_value: { type: string }
+        changed_by:
+          type: object
+          properties:
+            id: { type: integer }
+            first_name: { type: string }
+            last_name: { type: string }
+        timestamp: { type: string, format: date-time }

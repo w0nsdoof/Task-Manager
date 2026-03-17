@@ -11,6 +11,10 @@ class Notification(models.Model):
         STATUS_CHANGED = "status_changed", "Status Changed"
         DEADLINE_WARNING = "deadline_warning", "Deadline Warning"
         SUMMARY_READY = "summary_ready", "Summary Ready"
+        PROJECT_ASSIGNED = "project_assigned", "Project Assigned"
+        PROJECT_UNASSIGNED = "project_unassigned", "Project Unassigned"
+        EPIC_ASSIGNED = "epic_assigned", "Epic Assigned"
+        EPIC_UNASSIGNED = "epic_unassigned", "Epic Unassigned"
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
@@ -20,6 +24,12 @@ class Notification(models.Model):
     )
     task = models.ForeignKey(
         "tasks.Task", on_delete=models.CASCADE, null=True, blank=True, related_name="notifications"
+    )
+    project = models.ForeignKey(
+        "projects.Project", on_delete=models.CASCADE, null=True, blank=True, related_name="notifications"
+    )
+    epic = models.ForeignKey(
+        "projects.Epic", on_delete=models.CASCADE, null=True, blank=True, related_name="notifications"
     )
     related_object_id = models.PositiveIntegerField(null=True, blank=True)
     message = models.TextField()
