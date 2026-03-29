@@ -21,9 +21,15 @@ def check_approaching_deadlines():
         status__in=["created", "in_progress", "waiting"],
     ).prefetch_related("assignees")
 
+    from apps.telegram.templates import build_telegram_context
+
     count = 0
     for task in tasks:
         from apps.notifications.models import Notification
+
+        ctx = build_telegram_context(event_type="deadline_warning", task=task)
+        msg = f"Task '{task.title}' deadline is approaching: {task.deadline.strftime('%Y-%m-%d %H:%M')}"
+
         for assignee in task.assignees.all():
             already_notified = Notification.objects.filter(
                 recipient=assignee,
@@ -36,7 +42,8 @@ def check_approaching_deadlines():
                     recipient=assignee,
                     event_type="deadline_warning",
                     task=task,
-                    message=f"Task '{task.title}' deadline is approaching: {task.deadline.strftime('%Y-%m-%d %H:%M')}",
+                    message=msg,
+                    telegram_context=ctx,
                 )
                 count += 1
 
@@ -52,7 +59,8 @@ def check_approaching_deadlines():
                     recipient=task.created_by,
                     event_type="deadline_warning",
                     task=task,
-                    message=f"Task '{task.title}' deadline is approaching: {task.deadline.strftime('%Y-%m-%d %H:%M')}",
+                    message=msg,
+                    telegram_context=ctx,
                 )
                 count += 1
 

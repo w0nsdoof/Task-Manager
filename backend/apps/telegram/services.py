@@ -129,20 +129,3 @@ def unlink_telegram(user):
     return deleted > 0
 
 
-def format_telegram_notification(notification, task):
-    """Format an HTML message for Telegram notification."""
-    lines = []
-
-    if task:
-        task_title = task.title
-        lines.append(f"<b>{task_title}</b>")
-
-    lines.append(notification.message)
-
-    if task:
-        base_url = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else "localhost"
-        scheme = "http" if base_url == "localhost" else "https"
-        task_url = f"{scheme}://{base_url}/tasks/{task.id}"
-        lines.append(f'\n<a href="{task_url}">View task</a>')
-
-    return "\n".join(lines)

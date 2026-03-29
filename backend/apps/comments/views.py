@@ -74,15 +74,24 @@ class CommentViewSet(viewsets.ModelViewSet):
             is_public=serializer.validated_data["is_public"],
         )
 
+        from apps.telegram.templates import build_telegram_context
+
+        actor_name = f"{request.user.first_name} {request.user.last_name}"
         mentioned_users = parse_mentions(comment.content, organization=request.user.organization)
         if mentioned_users:
             comment.mentions.set(mentioned_users)
             for user in mentioned_users:
+                ctx = build_telegram_context(
+                    event_type="mention", task=task, actor=request.user,
+                    extra={"comment_author": actor_name},
+                )
                 create_notification(
                     recipient=user,
                     event_type="mention",
                     task=task,
-                    message=f"{request.user.first_name} {request.user.last_name} mentioned you in a comment on task '{task.title}'",
+                    message=f"{actor_name} mentioned you in a comment on task '{task.title}'",
+                    actor=request.user,
+                    telegram_context=ctx,
                 )
 
         create_audit_entry(
@@ -95,11 +104,17 @@ class CommentViewSet(viewsets.ModelViewSet):
 
         for assignee in task.assignees.exclude(pk=request.user.pk):
             if assignee not in mentioned_users:
+                ctx = build_telegram_context(
+                    event_type="comment_added", task=task, actor=request.user,
+                    extra={"comment_author": actor_name},
+                )
                 create_notification(
                     recipient=assignee,
                     event_type="comment_added",
                     task=task,
-                    message=f"New comment on task '{task.title}' by {request.user.first_name} {request.user.last_name}",
+                    message=f"New comment on task '{task.title}' by {actor_name}",
+                    actor=request.user,
+                    telegram_context=ctx,
                 )
 
         return Response(

@@ -332,13 +332,20 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
         with transaction.atomic():
             task.assignees.set(new_ids)
 
+            from apps.telegram.templates import build_telegram_context
+
             for uid in added:
                 user = users_by_id[uid]
+                ctx = build_telegram_context(
+                    event_type="task_assigned", task=task, actor=request.user,
+                )
                 create_notification(
                     recipient=user,
                     event_type="task_assigned",
                     task=task,
                     message=f"You have been assigned to task '{task.title}'",
+                    actor=request.user,
+                    telegram_context=ctx,
                 )
                 create_audit_entry(
                     task=task,
@@ -350,11 +357,16 @@ class TaskViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
 
             for uid in removed:
                 user = users_by_id[uid]
+                ctx = build_telegram_context(
+                    event_type="task_unassigned", task=task, actor=request.user,
+                )
                 create_notification(
                     recipient=user,
                     event_type="task_unassigned",
                     task=task,
                     message=f"You have been removed from task '{task.title}'",
+                    actor=request.user,
+                    telegram_context=ctx,
                 )
                 create_audit_entry(
                     task=task,

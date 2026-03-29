@@ -1,7 +1,17 @@
 from apps.notifications.models import Notification
 
 
-def create_notification(recipient, event_type, task=None, message="", related_object_id=None, actor=None, project=None, epic=None):
+def create_notification(
+    recipient,
+    event_type,
+    task=None,
+    message="",
+    related_object_id=None,
+    actor=None,
+    project=None,
+    epic=None,
+    telegram_context=None,
+):
     notification = Notification.objects.create(
         recipient=recipient,
         event_type=event_type,
@@ -23,6 +33,8 @@ def create_notification(recipient, event_type, task=None, message="", related_ob
             title = project.title
         elif epic:
             title = epic.title
-        send_telegram_notification.delay(recipient.pk, message, title)
+        send_telegram_notification.delay(
+            recipient.pk, message, title, telegram_context=telegram_context,
+        )
 
     return notification

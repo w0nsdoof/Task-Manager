@@ -224,13 +224,19 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         if assignee_ids:
             task.assignees.set(assignee_ids)
             from apps.notifications.services import create_notification
+            from apps.telegram.templates import build_telegram_context
             assignees = User.objects.filter(pk__in=assignee_ids)
             for assignee in assignees:
+                ctx = build_telegram_context(
+                    event_type="task_assigned", task=task, actor=user,
+                )
                 create_notification(
                     recipient=assignee,
                     event_type="task_assigned",
                     task=task,
                     message=f"You have been assigned to task '{task.title}'",
+                    actor=user,
+                    telegram_context=ctx,
                 )
         if tag_ids:
             task.tags.set(tag_ids)

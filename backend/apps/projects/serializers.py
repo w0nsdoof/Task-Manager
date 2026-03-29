@@ -124,14 +124,19 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
 
         if assignee_id and assignee_id != user.pk:
             from apps.notifications.services import create_notification
+            from apps.telegram.templates import build_telegram_context
 
             assignee = User.objects.get(pk=assignee_id)
+            ctx = build_telegram_context(
+                event_type="project_assigned", project=project, actor=user,
+            )
             create_notification(
                 recipient=assignee,
                 event_type="project_assigned",
                 project=project,
                 message=f"You have been assigned to project '{project.title}'",
                 actor=user,
+                telegram_context=ctx,
             )
 
         return project
@@ -331,14 +336,19 @@ class EpicCreateSerializer(serializers.ModelSerializer):
 
         if assignee_id and assignee_id != user.pk:
             from apps.notifications.services import create_notification
+            from apps.telegram.templates import build_telegram_context
 
             assignee = User.objects.get(pk=assignee_id)
+            ctx = build_telegram_context(
+                event_type="epic_assigned", epic=epic, actor=user,
+            )
             create_notification(
                 recipient=assignee,
                 event_type="epic_assigned",
                 epic=epic,
                 message=f"You have been assigned to epic '{epic.title}'",
                 actor=user,
+                telegram_context=ctx,
             )
 
         return epic
