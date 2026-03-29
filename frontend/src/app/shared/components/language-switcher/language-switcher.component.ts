@@ -30,6 +30,6 @@ export class LanguageSwitcherComponent {
   switchLang(lang: string): void {
     this.translate.use(lang);
     localStorage.setItem('app_language', lang);
-    this.http.patch(`${environment.apiUrl}/auth/me/`, { language: lang }).subscribe();
+    this.http.patch(`${environment.apiUrl}/users/me/`, { language: lang }).subscribe();
   }
 }
