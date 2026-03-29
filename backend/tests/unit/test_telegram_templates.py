@@ -30,7 +30,6 @@ class TestRenderTelegramMessage:
         assert "Previous status: Created" in result
         assert "New status: In Progress" in result
         assert "By: John Doe" in result
-        assert "/tasks/42" in result
 
     def test_status_changed_ru(self):
         ctx = {
@@ -48,7 +47,6 @@ class TestRenderTelegramMessage:
         assert "\u0422\u0438\u043f: \u0417\u0430\u0434\u0430\u0447\u0430" in result  # Тип: Задача
         assert "\u041f\u0440\u0435\u0434\u044b\u0434\u0443\u0449\u0438\u0439 \u0441\u0442\u0430\u0442\u0443\u0441: \u0421\u043e\u0437\u0434\u0430\u043d\u043e" in result  # Предыдущий статус: Создано
         assert "\u041d\u043e\u0432\u044b\u0439 \u0441\u0442\u0430\u0442\u0443\u0441: \u0412 \u0440\u0430\u0431\u043e\u0442\u0435" in result  # Новый статус: В работе
-        assert "\u041e\u0442\u043a\u0440\u044b\u0442\u044c" in result  # Открыть (link text)
 
     def test_task_assigned_en(self):
         ctx = {
@@ -223,25 +221,58 @@ class TestRenderTelegramMessage:
             assert "en" in heading_map, f"{event_type} missing 'en' heading"
             assert "ru" in heading_map, f"{event_type} missing 'ru' heading"
 
-    def test_entity_url_for_epic(self):
+    def test_comment_text_shown_in_comment_added(self):
         ctx = {
-            "event_type": "epic_assigned",
-            "entity_type": "epic",
-            "title": "Test Epic",
-            "epic_id": 42,
+            "event_type": "comment_added",
+            "entity_type": "task",
+            "title": "Backend dev",
+            "comment_author": "Alice",
+            "comment_text": "Please review the API changes",
+            "task_id": 5,
         }
-        result = render_telegram_message("epic_assigned", "en", ctx)
-        assert "epic=42" in result
+        result = render_telegram_message("comment_added", "en", ctx)
 
-    def test_entity_url_for_project(self):
+        assert "Text: Please review the API changes" in result
+
+    def test_comment_text_shown_in_mention_ru(self):
         ctx = {
-            "event_type": "project_assigned",
-            "entity_type": "project",
-            "title": "Test Project",
-            "project_id": 7,
+            "event_type": "mention",
+            "entity_type": "task",
+            "title": "API design",
+            "comment_author": "Bob",
+            "comment_text": "Hey @John check this out",
+            "task_id": 7,
         }
-        result = render_telegram_message("project_assigned", "en", ctx)
-        assert "project=7" in result
+        result = render_telegram_message("mention", "ru", ctx)
+
+        assert "\u0422\u0435\u043a\u0441\u0442: Hey @John check this out" in result  # Текст:
+
+    def test_comment_text_truncated(self):
+        long_comment = "X" * 300
+        ctx = {
+            "event_type": "comment_added",
+            "entity_type": "task",
+            "title": "Test",
+            "comment_author": "Alice",
+            "comment_text": long_comment,
+            "task_id": 1,
+        }
+        result = render_telegram_message("comment_added", "en", ctx)
+
+        assert "X" * 200 + "\u2026" in result
+        assert "X" * 201 not in result
+
+    def test_no_url_in_output(self):
+        ctx = {
+            "event_type": "task_assigned",
+            "entity_type": "task",
+            "title": "Test",
+            "task_id": 42,
+        }
+        result = render_telegram_message("task_assigned", "en", ctx)
+
+        assert "<a href=" not in result
+        assert "View" not in result
 
 
 # ── build_telegram_context tests ──────────────────────────────────────

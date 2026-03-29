@@ -83,7 +83,7 @@ class CommentViewSet(viewsets.ModelViewSet):
             for user in mentioned_users:
                 ctx = build_telegram_context(
                     event_type="mention", task=task, actor=request.user,
-                    extra={"comment_author": actor_name},
+                    extra={"comment_author": actor_name, "comment_text": comment.content},
                 )
                 create_notification(
                     recipient=user,
@@ -106,7 +106,7 @@ class CommentViewSet(viewsets.ModelViewSet):
             if assignee not in mentioned_users:
                 ctx = build_telegram_context(
                     event_type="comment_added", task=task, actor=request.user,
-                    extra={"comment_author": actor_name},
+                    extra={"comment_author": actor_name, "comment_text": comment.content},
                 )
                 create_notification(
                     recipient=assignee,
