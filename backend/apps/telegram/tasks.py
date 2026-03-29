@@ -25,8 +25,14 @@ def cleanup_expired_verification_codes():
     max_retries=3,
     default_retry_delay=30,
 )
-def send_telegram_notification(self, user_id, notification_message, task_title=None):
+def send_telegram_notification(
+    self, user_id, notification_message, task_title=None, telegram_context=None,
+):
     """Send a Telegram notification to a user.
+
+    When telegram_context is provided, renders a structured bilingual message
+    using the recipient's language preference. Otherwise falls back to the
+    plain title + message format.
 
     Checks that the user has an active link with notifications enabled.
     On 403 (bot blocked), deactivates the link.
@@ -35,7 +41,7 @@ def send_telegram_notification(self, user_id, notification_message, task_title=N
     from apps.telegram.services import send_telegram_message
 
     try:
-        link = TelegramLink.objects.get(
+        link = TelegramLink.objects.select_related("user").get(
             user_id=user_id,
             is_active=True,
             telegram_notifications_enabled=True,
@@ -43,12 +49,19 @@ def send_telegram_notification(self, user_id, notification_message, task_title=N
     except TelegramLink.DoesNotExist:
         return "No active Telegram link for user"
 
-    # Format message
-    lines = []
-    if task_title:
-        lines.append(f"<b>{task_title}</b>")
-    lines.append(notification_message)
-    text = "\n".join(lines)
+    # Format message — structured if context available, plain otherwise
+    if telegram_context:
+        from apps.telegram.templates import render_telegram_message
+
+        language = link.user.language if hasattr(link.user, "language") else "en"
+        event_type = telegram_context.get("event_type", "")
+        text = render_telegram_message(event_type, language, telegram_context)
+    else:
+        lines = []
+        if task_title:
+            lines.append(f"<b>{task_title}</b>")
+        lines.append(notification_message)
+        text = "\n".join(lines)
 
     try:
         result = send_telegram_message(link.chat_id, text)

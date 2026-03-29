@@ -321,6 +321,13 @@ def notify_managers_of_summary(summary):
         f"for {period_desc} is available."
     )
 
+    ctx = {
+        "event_type": "summary_ready",
+        "entity_type": "summary",
+        "title": f"{summary.get_period_type_display()} summary",
+        "period": period_desc,
+    }
+
     managers = User.objects.filter(role=User.Role.MANAGER, is_active=True, organization=summary.organization)
     for manager in managers:
         create_notification(
@@ -329,6 +336,7 @@ def notify_managers_of_summary(summary):
             task=None,
             message=message,
             related_object_id=summary.id,
+            telegram_context=ctx,
         )
     logger.info("Notified %d managers about summary id=%s", managers.count(), summary.id)
 

@@ -59,13 +59,21 @@ def apply_status_change(task, new_status, actor, comment=None):
         new_value=new_status,
     )
 
+    from apps.telegram.templates import build_telegram_context
+
     for assignee in task.assignees.all():
         if assignee != actor:
+            ctx = build_telegram_context(
+                event_type="status_changed", task=task, actor=actor,
+                extra={"old_status": old_status, "new_status": new_status},
+            )
             create_notification(
                 recipient=assignee,
                 event_type="status_changed",
                 task=task,
                 message=f"Task '{task.title}' status changed from {old_status} to {new_status}",
+                actor=actor,
+                telegram_context=ctx,
             )
 
     _broadcast_task_event("task_status_changed", task)
