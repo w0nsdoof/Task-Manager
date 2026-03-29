@@ -6,8 +6,6 @@ Each event type has its own heading, emoji, and set of metadata fields.
 
 from html import escape
 
-from django.conf import settings
-
 # ── Emoji per event type ──────────────────────────────────────────────
 
 EMOJI = {
@@ -80,6 +78,7 @@ LABELS = {
     "old_status": {"en": "Previous status", "ru": "Предыдущий статус"},
     "new_status": {"en": "New status", "ru": "Новый статус"},
     "comment_author": {"en": "Comment by", "ru": "Комментарий от"},
+    "comment_text": {"en": "Text", "ru": "Текст"},
     "period": {"en": "Period", "ru": "Период"},
 }
 
@@ -115,8 +114,8 @@ EVENT_FIELDS = {
     "task_unassigned": ["entity_type", "title", "actor"],
     "status_changed": ["entity_type", "title", "old_status", "new_status", "actor"],
     "task_completed": ["entity_type", "title", "assignee", "actor"],
-    "comment_added": ["entity_type", "title", "comment_author"],
-    "mention": ["entity_type", "title", "comment_author"],
+    "comment_added": ["entity_type", "title", "comment_author", "comment_text"],
+    "mention": ["entity_type", "title", "comment_author", "comment_text"],
     "deadline_warning": ["entity_type", "title", "assignee", "priority", "deadline"],
     "project_assigned": ["entity_type", "title", "priority", "deadline", "actor"],
     "epic_assigned": ["entity_type", "title", "priority", "deadline", "actor"],
@@ -142,20 +141,6 @@ def _translate_value(field: str, value: str | None, lang: str) -> str:
     if mapping and value in mapping:
         return mapping[value].get(lang, value)
     return value
-
-
-def _build_entity_url(context: dict) -> str | None:
-    """Build a clickable URL for the entity, if an ID is present."""
-    host = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else "localhost"
-    scheme = "http" if host == "localhost" else "https"
-
-    if context.get("task_id"):
-        return f"{scheme}://{host}/tasks/{context['task_id']}"
-    if context.get("epic_id"):
-        return f"{scheme}://{host}/projects?epic={context['epic_id']}"
-    if context.get("project_id"):
-        return f"{scheme}://{host}/projects?project={context['project_id']}"
-    return None
 
 
 def render_telegram_message(event_type: str, language: str, context: dict) -> str:
@@ -187,16 +172,11 @@ def render_telegram_message(event_type: str, language: str, context: dict) -> st
         label = label_map.get(lang, field) if label_map else field
         display_value = _translate_value(field, str(raw_value), lang)
 
-        # Truncate long titles
-        if field == "title" and len(display_value) > _MAX_TITLE_LEN:
+        # Truncate long values
+        if field in ("title", "comment_text") and len(display_value) > _MAX_TITLE_LEN:
             display_value = display_value[:_MAX_TITLE_LEN] + "…"
 
         lines.append(f"{escape(label)}: {escape(display_value)}")
-
-    url = _build_entity_url(context)
-    if url:
-        link_text = {"en": "View", "ru": "Открыть"}.get(lang, "View")
-        lines.append(f'\n<a href="{url}">{link_text}</a>')
 
     return "\n".join(lines)
 
