@@ -49,7 +49,7 @@ class TestProjectListSerializer:
         )
         serializer = ProjectListSerializer(qs.first())
         expected_fields = {
-            "id", "title", "status", "priority", "deadline",
+            "id", "title", "description", "status", "priority", "deadline",
             "assignee", "client", "tags", "epics_count",
             "created_at", "updated_at",
         }

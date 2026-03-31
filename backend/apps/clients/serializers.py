@@ -55,7 +55,8 @@ class ClientDetailSerializer(serializers.ModelSerializer):
 class ClientCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Client
-        fields = ["name", "client_type", "phone", "email", "contact_person"]
+        fields = ["id", "name", "client_type", "phone", "email", "contact_person"]
+        read_only_fields = ["id"]
 
     def validate_name(self, value):
         request = self.context.get("request")

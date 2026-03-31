@@ -156,10 +156,11 @@ class TaskCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = [
-            "title", "description", "priority", "deadline",
+            "id", "title", "description", "priority", "deadline",
             "client_id", "assignee_ids", "tag_ids",
             "epic_id", "parent_task_id",
         ]
+        read_only_fields = ["id"]
 
     def validate_client_id(self, value):
         if value:
@@ -341,7 +342,8 @@ class TaskCreateEngineerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Task
-        fields = ["title", "description", "priority", "deadline", "tag_ids", "epic_id", "parent_task_id"]
+        fields = ["id", "title", "description", "priority", "deadline", "tag_ids", "epic_id", "parent_task_id"]
+        read_only_fields = ["id"]
 
     def validate_tag_ids(self, value):
         if value:
