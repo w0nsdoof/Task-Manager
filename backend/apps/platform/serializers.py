@@ -51,7 +51,8 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 class OrganizationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
-        fields = ["name"]
+        fields = ["id", "name"]
+        read_only_fields = ["id"]
         extra_kwargs = {"name": {"help_text": "Organization name. Must be globally unique. Slug is auto-generated."}}
 
 

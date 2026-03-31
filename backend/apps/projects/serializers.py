@@ -35,7 +35,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = [
-            "id", "title", "status", "priority", "deadline",
+            "id", "title", "description", "status", "priority", "deadline",
             "assignee", "client", "tags", "epics_count",
             "created_at", "updated_at",
         ]
@@ -71,7 +71,8 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Project
-        fields = ["title", "description", "priority", "deadline", "assignee_id", "client_id", "tag_ids"]
+        fields = ["id", "title", "description", "priority", "deadline", "assignee_id", "client_id", "tag_ids"]
+        read_only_fields = ["id"]
 
     def validate_assignee_id(self, value):
         if value is not None:
@@ -271,9 +272,10 @@ class EpicCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Epic
         fields = [
-            "title", "description", "priority", "deadline",
+            "id", "title", "description", "priority", "deadline",
             "project_id", "assignee_id", "client_id", "tag_ids",
         ]
+        read_only_fields = ["id"]
 
     def validate_project_id(self, value):
         if value is not None:
@@ -367,7 +369,8 @@ class EpicCreateEngineerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Epic
-        fields = ["title", "description", "priority", "deadline", "project_id", "tag_ids"]
+        fields = ["id", "title", "description", "priority", "deadline", "project_id", "tag_ids"]
+        read_only_fields = ["id"]
 
     def validate_project_id(self, value):
         if value is not None:
