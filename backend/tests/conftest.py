@@ -7,6 +7,7 @@ from tests.factories import (
     EngineerFactory,
     ManagerFactory,
     OrganizationFactory,
+    ProjectFactory,
     SuperadminFactory,
     TagFactory,
     TaskFactory,
@@ -56,6 +57,11 @@ def superadmin():
 @pytest.fixture
 def tag(organization):
     return TagFactory(organization=organization)
+
+
+@pytest.fixture
+def project(manager):
+    return ProjectFactory(created_by=manager, organization=manager.organization)
 
 
 @pytest.fixture

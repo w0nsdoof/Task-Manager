@@ -42,6 +42,9 @@ class Project(models.Model):
         db_index=True,
     )
     tags = models.ManyToManyField("tags.Tag", blank=True, related_name="projects")
+    team = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="project_teams",
+    )
     organization = models.ForeignKey(
         "organizations.Organization",
         on_delete=models.CASCADE,

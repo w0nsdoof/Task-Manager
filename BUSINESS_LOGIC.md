@@ -25,6 +25,28 @@ A customer that the organization **does work for**. Clients exist inside an orga
 
 Example: DataSoft does work for "Kaspersky", "Ozon", and "Sberbank" — each is a Client record inside the DataSoft organization.
 
+### Project
+
+A top-level container for organizing work. Projects group related epics and provide team scoping.
+
+- **Team**: a set of users (M2M) who work on this project. When AI generates tasks for an epic within a project, it picks assignees from the project's team rather than all org users.
+- **Assignee**: a single user who leads/owns the project (optional)
+- Projects have the same status workflow and optimistic locking as tasks
+
+### Epic
+
+A large body of work within a project, broken into tasks. Epics belong to a project (optional — standalone epics are allowed) and inherit the project's team for assignment scoping.
+
+### Work Hierarchy
+
+```
+Project → Epic → Task → Subtask
+```
+
+- Epic can exist without a project (standalone)
+- Task can exist without an epic
+- Subtask must have a parent task (max 1 level deep, max 1 assignee)
+
 ### Task
 
 A unit of work. Every task belongs to one organization and optionally links to one client. Tasks have:
@@ -71,21 +93,23 @@ Each task has a `version` field. When two people try to update the same task sim
 
 | Area | Capabilities |
 |------|-------------|
+| **Projects** | Create, edit, delete projects; manage team membership |
+| **Epics** | Create, edit, delete epics; assign to projects |
 | **Tasks** | Create, update all fields, change any status, assign engineers |
 | **Users** | Create, edit, deactivate users in the organization |
 | **Clients** | Create, edit, delete client records |
 | **Comments** | Create comments (public or internal), view all comments |
 | **Attachments** | Upload and delete files |
 | **Reports** | Generate PDF/Excel reports, view AI summaries |
-| **Audit** | View full change history of any task |
+| **Audit** | View full change history of any task, project, or epic |
 | **Kanban** | Full access to the kanban board |
 | **Calendar** | View task deadlines on the calendar |
 
 Typical workflow:
-1. Receive a request from a client
-2. Create a task, set priority and deadline, link it to the client
-3. Assign one or more engineers
-4. Monitor progress on the kanban board
+1. Create a project, assign team members
+2. Break the project into epics, then into tasks
+3. Assign engineers from the project team
+4. Monitor progress on the kanban board and project tree
 5. Review completed work, archive finished tasks
 6. Generate weekly/monthly reports for stakeholders
 
@@ -178,10 +202,14 @@ Organization
 ├── Users (manager, engineer, client)
 ├── Clients
 │   └── Portal Users (client-role users linked to a specific client)
-├── Tasks
-│   ├── Comments
-│   ├── Attachments
-│   └── Audit Log Entries
+├── Projects
+│   ├── Team (M2M → Users, scopes who can be assigned within the project)
+│   └── Epics
+│       └── Tasks
+│           ├── Subtasks
+│           ├── Comments
+│           ├── Attachments
+│           └── Audit Log Entries
 ├── Tags
 └── Report Summaries
 ```

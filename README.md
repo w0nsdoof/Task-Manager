@@ -22,6 +22,7 @@ backend/                 # Django REST API + WebSockets
     accounts/            #   Custom User model (email auth), JWT, RBAC
     organizations/       #   Multi-tenant organization model + management commands
     tasks/               #   Task CRUD, status transitions, optimistic locking
+    projects/            #   Project & Epic models (team, hierarchy), CRUD, status transitions
     clients/             #   Client management + client portal
     comments/            #   Task comments with @mention parsing
     attachments/         #   File upload/download per task
@@ -36,7 +37,7 @@ backend/                 # Django REST API + WebSockets
 frontend/                # Angular 17 SPA
   src/app/
     core/                #   Services, guards, interceptors, layout
-    features/            #   Tasks, Kanban, Clients, Calendar, Reports, Admin, Portal, Platform
+    features/            #   Tasks, Projects, Kanban, Clients, Calendar, Reports, Admin, Portal, Platform
 
 .github/workflows/       # CI/CD pipelines
 docker-compose.yml       # Docker Compose (production)

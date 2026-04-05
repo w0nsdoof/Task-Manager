@@ -16,6 +16,7 @@ apps/
   clients/        # Client management + portal views for client-role users
   comments/       # Task comments with @mention parsing and role-based visibility
   attachments/    # File upload/download per task
+  projects/       # Project & Epic models (team M2M, hierarchy), CRUD, status transitions
   tags/           # Tag CRUD with auto-slug
   notifications/  # In-app notifications + Celery tasks (deadline warnings, status emails)
   reports/        # Summary/PDF/Excel report generation
@@ -86,3 +87,4 @@ JWT via `djangorestframework-simplejwt`. Refresh token is set as httpOnly cookie
 - Summary generation uses LiteLLM (provider-agnostic); falls back to template if LLM unavailable
 - Redis locks prevent duplicate concurrent summary generation for the same period
 - Notification model has `related_object_id` for linking to summaries (nullable, generic)
+- Project model has `team` M2M field (User) — scopes available assignees for AI task generation; `team_member_ids` in create/update serializers, validated for active users

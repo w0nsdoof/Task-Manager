@@ -84,7 +84,7 @@ class ProjectViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        qs = qs.select_related("assignee", "client", "created_by").prefetch_related("tags")
+        qs = qs.select_related("assignee", "client", "created_by").prefetch_related("tags", "team")
 
         if self.action == "list":
             qs = qs.annotate(

@@ -50,7 +50,7 @@ class TestProjectListSerializer:
         serializer = ProjectListSerializer(qs.first())
         expected_fields = {
             "id", "title", "description", "status", "priority", "deadline",
-            "assignee", "client", "tags", "epics_count",
+            "assignee", "client", "tags", "team", "epics_count",
             "created_at", "updated_at",
         }
         assert set(serializer.data.keys()) == expected_fields
@@ -72,7 +72,7 @@ class TestProjectDetailSerializer:
         serializer = ProjectDetailSerializer(qs.first())
         expected_fields = {
             "id", "title", "description", "status", "priority", "deadline",
-            "assignee", "client", "tags", "created_by",
+            "assignee", "client", "tags", "team", "created_by",
             "epics_count", "version", "created_at", "updated_at",
         }
         assert set(serializer.data.keys()) == expected_fields

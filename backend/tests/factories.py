@@ -4,6 +4,7 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.clients.models import Client
 from apps.organizations.models import Organization
+from apps.projects.models import Epic, Project
 from apps.tags.models import Tag
 from apps.tasks.models import Task
 
@@ -74,6 +75,48 @@ class TagFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: f"tag-{n}")
     color = "#6c757d"
     organization = factory.SubFactory(OrganizationFactory)
+
+
+class ProjectFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Project
+        skip_postgeneration_save = True
+
+    title = factory.Sequence(lambda n: f"Project {n}")
+    description = factory.Faker("paragraph")
+    status = Project.Status.CREATED
+    created_by = factory.SubFactory(ManagerFactory)
+    organization = factory.LazyAttribute(lambda o: o.created_by.organization)
+
+    @factory.post_generation
+    def team(self, create, extracted, **kwargs):
+        if not create or not extracted:
+            return
+        self.team.set(extracted)
+
+    @factory.post_generation
+    def tags(self, create, extracted, **kwargs):
+        if not create or not extracted:
+            return
+        self.tags.set(extracted)
+
+
+class EpicFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Epic
+        skip_postgeneration_save = True
+
+    title = factory.Sequence(lambda n: f"Epic {n}")
+    description = factory.Faker("paragraph")
+    status = Epic.Status.CREATED
+    created_by = factory.SubFactory(ManagerFactory)
+    organization = factory.LazyAttribute(lambda o: o.created_by.organization)
+
+    @factory.post_generation
+    def tags(self, create, extracted, **kwargs):
+        if not create or not extracted:
+            return
+        self.tags.set(extracted)
 
 
 class TaskFactory(factory.django.DjangoModelFactory):

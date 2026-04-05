@@ -31,12 +31,19 @@ src/app/
     interceptors/   # jwtInterceptor (token + 401 refresh), errorInterceptor
     components/     # LoginComponent, LayoutComponent (shell + nav)
   features/
-    tasks/          # TaskList, TaskForm, KanbanBoard, TaskDetail
+    tasks/          # TaskList, TaskForm, KanbanBoard, TaskDetail, CreateEntityDialog
     clients/        # ClientList, ClientDetail
     calendar/       # CalendarView
     reports/        # ReportsView, SummaryList, SummaryDetail (AI summaries)
     admin/          # UserManagement
     portal/         # ClientPortal
+```
+
+## Structure (continued)
+
+```
+  features/
+    projects/        # ProjectList (MatTree), ProjectDetail, EpicDetail
 ```
 
 ## Key conventions
