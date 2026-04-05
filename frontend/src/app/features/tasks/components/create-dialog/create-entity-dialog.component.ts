@@ -179,6 +179,18 @@ interface UserOption {
           </mat-form-field>
         </div>
 
+        <!-- Team members (manager-only multi-select for project) -->
+        <div class="form-group" *ngIf="entityType === 'project' && isManager">
+          <label class="flat-input-label">{{ 'projects.teamMembers' | translate }}</label>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-select formControlName="team_member_ids" multiple>
+              <mat-option *ngFor="let u of users" [value]="u.id">
+                {{ u.first_name }} {{ u.last_name }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
         <!-- Assignees for task type: multi-select -->
         <div class="form-group" *ngIf="entityType === 'task' && isManager">
           <label class="flat-input-label">{{ 'tasks.assignees' | translate }}</label>
@@ -352,6 +364,7 @@ export class CreateEntityDialogComponent implements OnInit, OnDestroy {
       assignee_ids: [[]],
       client_id: [null],
       tag_ids: [[]],
+      team_member_ids: [[]],
     });
 
     this.loadDropdownData();
@@ -372,6 +385,7 @@ export class CreateEntityDialogComponent implements OnInit, OnDestroy {
       assignee_id: null,
       assignee_ids: [],
       client_id: null,
+      team_member_ids: [],
     });
 
     // Set parent_task_id required for subtask
@@ -433,6 +447,7 @@ export class CreateEntityDialogComponent implements OnInit, OnDestroy {
       assignee_id: val.assignee_id || undefined,
       client_id: val.client_id || undefined,
       tag_ids: val.tag_ids?.length ? val.tag_ids : undefined,
+      team_member_ids: val.team_member_ids?.length ? val.team_member_ids : undefined,
     };
     this.projectService.createProject(payload).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result) => {

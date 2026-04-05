@@ -24,6 +24,7 @@ export interface ProjectListItem {
   assignee: UserBrief | null;
   client: ClientBrief | null;
   tags: TagBrief[];
+  team: UserBrief[];
   epics_count: number;
   created_at: string;
   updated_at: string;
@@ -43,6 +44,7 @@ export interface ProjectCreatePayload {
   assignee_id?: number | null;
   client_id?: number | null;
   tag_ids?: number[];
+  team_member_ids?: number[];
 }
 
 export interface ProjectUpdatePayload extends Partial<ProjectCreatePayload> {

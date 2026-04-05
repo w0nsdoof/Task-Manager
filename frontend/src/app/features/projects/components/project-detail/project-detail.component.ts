@@ -146,6 +146,16 @@ const ALL_STATUSES = ['created', 'in_progress', 'waiting', 'done', 'archived'];
               </mat-select>
             </mat-form-field>
           </div>
+          <div class="form-group">
+            <label class="flat-input-label">{{ 'projects.teamMembers' | translate }}</label>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-select formControlName="team_member_ids" multiple>
+                <mat-option *ngFor="let u of users" [value]="u.id">
+                  {{ u.first_name }} {{ u.last_name }}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
         </form>
       </div>
 
@@ -208,6 +218,18 @@ const ALL_STATUSES = ['created', 'in_progress', 'waiting', 'done', 'archived'];
               <span class="meta-label">{{ 'tasks.tags' | translate }}</span>
               <span class="meta-value">
                 <mat-chip *ngFor="let t of project.tags" class="mini-tag">{{ t.name }}</mat-chip>
+              </span>
+            </div>
+          </div>
+          <div class="meta-item" *ngIf="project.team && project.team.length">
+            <mat-icon class="meta-icon">group</mat-icon>
+            <div>
+              <span class="meta-label">{{ 'projects.team' | translate }}</span>
+              <span class="meta-value assignee-flex">
+                <span *ngFor="let m of project.team" class="assignee-pill">
+                  <span class="mini-avatar">{{ m.first_name?.charAt(0) || '' }}</span>
+                  {{ m.first_name }} {{ m.last_name }}
+                </span>
               </span>
             </div>
           </div>
@@ -429,6 +451,7 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
       assignee_id: [null],
       client_id: [null],
       tag_ids: [[]],
+      team_member_ids: [[]],
     });
 
     this.loadProject();
@@ -498,6 +521,7 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
       assignee_id: this.project.assignee?.id || null,
       client_id: this.project.client?.id || null,
       tag_ids: this.project.tags.map(t => t.id),
+      team_member_ids: this.project.team?.map(m => m.id) || [],
     });
     this.editMode = true;
     this.loadDropdownData();
@@ -522,6 +546,7 @@ export class ProjectDetailComponent implements OnInit, OnDestroy {
       assignee_id: val.assignee_id,
       client_id: val.client_id,
       tag_ids: val.tag_ids,
+      team_member_ids: val.team_member_ids,
     };
     this.projectService.updateProject(this.projectId, payload).pipe(takeUntil(this.destroy$)).subscribe({
       next: (updated) => {

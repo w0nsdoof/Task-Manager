@@ -30,13 +30,14 @@ class ProjectListSerializer(serializers.ModelSerializer):
     assignee = AssigneeSerializer(read_only=True)
     client = ClientBriefSerializer(read_only=True)
     tags = TagBriefSerializer(many=True, read_only=True)
+    team = AssigneeSerializer(many=True, read_only=True)
     epics_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Project
         fields = [
             "id", "title", "description", "status", "priority", "deadline",
-            "assignee", "client", "tags", "epics_count",
+            "assignee", "client", "tags", "team", "epics_count",
             "created_at", "updated_at",
         ]
 
@@ -45,6 +46,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     assignee = AssigneeSerializer(read_only=True)
     client = ClientBriefSerializer(read_only=True)
     tags = TagBriefSerializer(many=True, read_only=True)
+    team = AssigneeSerializer(many=True, read_only=True)
     created_by = AssigneeSerializer(read_only=True)
     epics_count = serializers.IntegerField(read_only=True, default=0)
 
@@ -52,7 +54,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         model = Project
         fields = [
             "id", "title", "description", "status", "priority", "deadline",
-            "assignee", "client", "tags", "created_by",
+            "assignee", "client", "tags", "team", "created_by",
             "epics_count", "version", "created_at", "updated_at",
         ]
 
@@ -68,10 +70,14 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
         child=serializers.IntegerField(), required=False, default=list,
         help_text="List of tag IDs to attach.",
     )
+    team_member_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list,
+        help_text="List of user IDs for the project team.",
+    )
 
     class Meta:
         model = Project
-        fields = ["id", "title", "description", "priority", "deadline", "assignee_id", "client_id", "tag_ids"]
+        fields = ["id", "title", "description", "priority", "deadline", "assignee_id", "client_id", "tag_ids", "team_member_ids"]
         read_only_fields = ["id"]
 
     def validate_assignee_id(self, value):
@@ -93,11 +99,19 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("One or more tags are invalid.")
         return value
 
+    def validate_team_member_ids(self, value):
+        if value:
+            users = User.objects.filter(pk__in=value, is_active=True)
+            if users.count() != len(value):
+                raise serializers.ValidationError("One or more team members not found or inactive.")
+        return value
+
     @transaction.atomic
     def create(self, validated_data):
         assignee_id = validated_data.pop("assignee_id", None)
         client_id = validated_data.pop("client_id", None)
         tag_ids = validated_data.pop("tag_ids", [])
+        team_member_ids = validated_data.pop("team_member_ids", [])
 
         if assignee_id is not None:
             validated_data["assignee_id"] = assignee_id
@@ -111,6 +125,9 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
 
         if tag_ids:
             project.tags.set(tag_ids)
+
+        if team_member_ids:
+            project.team.set(team_member_ids)
 
         from apps.audit.models import AuditLogEntry
         from apps.audit.services import create_audit_entry
@@ -154,11 +171,15 @@ class ProjectUpdateSerializer(serializers.ModelSerializer):
         child=serializers.IntegerField(), required=False,
         help_text="Set of tag IDs. Replaces existing tags.",
     )
+    team_member_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False,
+        help_text="Set of user IDs. Replaces existing team members.",
+    )
     version = serializers.IntegerField(help_text="Current version for optimistic locking.")
 
     class Meta:
         model = Project
-        fields = ["title", "description", "priority", "deadline", "assignee_id", "client_id", "tag_ids", "version"]
+        fields = ["title", "description", "priority", "deadline", "assignee_id", "client_id", "tag_ids", "team_member_ids", "version"]
 
     def validate_assignee_id(self, value):
         if value is not None:
@@ -179,8 +200,16 @@ class ProjectUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("One or more tags are invalid.")
         return value
 
+    def validate_team_member_ids(self, value):
+        if value:
+            users = User.objects.filter(pk__in=value, is_active=True)
+            if users.count() != len(value):
+                raise serializers.ValidationError("One or more team members not found or inactive.")
+        return value
+
     def update(self, instance, validated_data):
         tag_ids = validated_data.pop("tag_ids", None)
+        team_member_ids = validated_data.pop("team_member_ids", None)
         client_id = validated_data.pop("client_id", None)
         assignee_id = validated_data.pop("assignee_id", None)
 
@@ -204,6 +233,9 @@ class ProjectUpdateSerializer(serializers.ModelSerializer):
 
         if tag_ids is not None:
             project.tags.set(tag_ids)
+
+        if team_member_ids is not None:
+            project.team.set(team_member_ids)
 
         return project
 

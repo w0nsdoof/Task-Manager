@@ -134,7 +134,10 @@
     "epics": "Epics",
     "addEpic": "Add Epic",
     "noEpics": "No epics yet.",
-    "tasksLabel": "tasks"
+    "tasksLabel": "tasks",
+    "team": "Team",
+    "teamMembers": "Team Members",
+    "noTeam": "No team members assigned."
   },
   "epics": {
     "title": "Epics",
