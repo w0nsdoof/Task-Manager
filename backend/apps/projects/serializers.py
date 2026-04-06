@@ -582,6 +582,76 @@ class EpicStatusChangeSerializer(serializers.Serializer):
 # AI Task Generation serializers
 # ---------------------------------------------------------------------------
 
+
+class GeneratedTaskSerializer(serializers.Serializer):
+    """Schema for a single AI-generated task (returned by the generation endpoint)."""
+    title = serializers.CharField(help_text="Concise, actionable task title")
+    description = serializers.CharField(help_text="1-3 sentences explaining what needs to be done")
+    priority = serializers.ChoiceField(
+        choices=["low", "medium", "high", "critical"],
+        help_text="Task priority level",
+    )
+    assignee_id = serializers.IntegerField(
+        allow_null=True,
+        help_text="ID of a project team member, or null if no good match",
+    )
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        help_text="IDs of matching organization tags",
+    )
+    estimated_hours = serializers.FloatField(
+        allow_null=True,
+        help_text="Rough time estimate in hours, null if uncertain",
+    )
+
+
+class GenerationMetaSerializer(serializers.Serializer):
+    """Metadata about the LLM generation call."""
+    model = serializers.CharField(help_text="LLM model used for generation")
+    prompt_tokens = serializers.IntegerField(allow_null=True, help_text="Number of prompt tokens")
+    completion_tokens = serializers.IntegerField(allow_null=True, help_text="Number of completion tokens")
+    generation_time_ms = serializers.IntegerField(allow_null=True, help_text="Wall-clock generation time in ms")
+
+
+class GenerationResultSerializer(serializers.Serializer):
+    """Full result payload when generation completes successfully."""
+    tasks = GeneratedTaskSerializer(many=True, help_text="List of AI-generated tasks for review")
+    warnings = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Validation warnings (e.g. dropped invalid assignees/tags)",
+    )
+    generation_meta = GenerationMetaSerializer(help_text="LLM call metadata")
+
+
+class GenerationStatusSerializer(serializers.Serializer):
+    """Response for polling the generation status."""
+    status = serializers.ChoiceField(
+        choices=["pending", "processing", "completed", "failed"],
+        help_text="Current generation status",
+    )
+    result = GenerationResultSerializer(
+        allow_null=True,
+        help_text="Present only when status is 'completed'",
+    )
+    error = serializers.CharField(
+        allow_null=True,
+        help_text="Error message when status is 'failed'",
+    )
+
+
+class CreatedTaskSerializer(serializers.Serializer):
+    """Schema for a task returned after confirmation."""
+    id = serializers.IntegerField(help_text="Created task ID")
+    title = serializers.CharField(help_text="Task title")
+    status = serializers.CharField(help_text="Initial task status (always 'created')")
+
+
+class ConfirmTasksResponseSerializer(serializers.Serializer):
+    """Response after confirming and creating AI-generated tasks."""
+    created_count = serializers.IntegerField(help_text="Number of tasks created")
+    tasks = CreatedTaskSerializer(many=True, help_text="List of created tasks")
+
+
 class ConfirmTaskItemSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
     description = serializers.CharField(required=False, default="", allow_blank=True)

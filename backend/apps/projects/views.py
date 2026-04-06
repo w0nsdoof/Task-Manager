@@ -21,6 +21,7 @@ from apps.organizations.mixins import OrganizationQuerySetMixin
 from apps.projects.models import Epic, Project
 from apps.projects.serializers import (
     AssigneeSerializer,
+    ConfirmTasksResponseSerializer,
     ConfirmTasksSerializer,
     EpicCreateEngineerSerializer,
     EpicCreateSerializer,
@@ -29,6 +30,7 @@ from apps.projects.serializers import (
     EpicStatusChangeSerializer,
     EpicUpdateEngineerSerializer,
     EpicUpdateSerializer,
+    GenerationStatusSerializer,
     ProjectCreateSerializer,
     ProjectDetailSerializer,
     ProjectListSerializer,
@@ -481,12 +483,12 @@ class EpicViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
             "Manager-only. Validates the Epic has a title and description, "
             "acquires a Redis lock to prevent concurrent generation, "
             "dispatches a Celery task for LLM-based task generation, "
-            "and returns the Celery task ID for polling."
+            "and returns the Celery task ID for polling via the status endpoint."
         ),
         request=None,
         responses={
             202: inline_serializer("GenerateTasksAccepted", fields={
-                "task_id": drf_serializers.CharField(),
+                "task_id": drf_serializers.CharField(help_text="Celery task ID — use with the status endpoint to poll"),
             }),
             400: OpenApiResponse(description="Epic is missing title or description"),
             403: OpenApiResponse(description="User is not a manager"),
@@ -529,20 +531,17 @@ class EpicViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
         summary="Poll task generation status",
         description=(
             "Manager-only. Checks the status of a previously triggered Celery task. "
-            "Returns the current status and, when completed, the generated task list."
+            "Returns the current status and, when completed, the generated task list. "
+            "Poll this endpoint until status is 'completed' or 'failed'."
         ),
         parameters=[
             OpenApiParameter(
                 "task_id", type=str, required=True,
-                description="Celery task ID returned by generate-tasks",
+                description="Celery task ID returned by the generate-tasks endpoint",
             ),
         ],
         responses={
-            200: inline_serializer("GenerateTasksStatus", fields={
-                "status": drf_serializers.CharField(),
-                "result": drf_serializers.DictField(allow_null=True),
-                "error": drf_serializers.CharField(allow_null=True),
-            }),
+            200: GenerationStatusSerializer,
             400: OpenApiResponse(description="Missing task_id"),
             403: OpenApiResponse(description="User is not a manager"),
             404: OpenApiResponse(description="Epic not found"),
@@ -586,15 +585,13 @@ class EpicViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
         summary="Confirm and create AI-generated tasks",
         description=(
             "Manager-only. Receives the (possibly edited) task list from the preview dialog "
-            "and creates all tasks under the Epic. Triggers standard notification flows "
-            "for assigned engineers. Wrapped in a database transaction."
+            "and creates all tasks under the Epic. Assigns engineers, sets tags, "
+            "triggers notification flows, and creates audit log entries. "
+            "Wrapped in a database transaction."
         ),
         request=ConfirmTasksSerializer,
         responses={
-            201: inline_serializer("ConfirmTasksResponse", fields={
-                "created_count": drf_serializers.IntegerField(),
-                "tasks": drf_serializers.ListField(child=drf_serializers.DictField()),
-            }),
+            201: ConfirmTasksResponseSerializer,
             400: OpenApiResponse(description="Validation error"),
             403: OpenApiResponse(description="User is not a manager"),
             404: OpenApiResponse(description="Epic not found"),
