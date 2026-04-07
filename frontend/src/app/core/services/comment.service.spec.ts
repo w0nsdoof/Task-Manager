@@ -13,6 +13,7 @@ describe('CommentService', () => {
     content: 'Test comment',
     is_public: true,
     mentions: [],
+    attachments: [],
     created_at: '2025-01-01T00:00:00Z',
   };
 
@@ -81,6 +82,28 @@ describe('CommentService', () => {
 
       const req = httpMock.expectOne('/api/tasks/10/comments/');
       expect(req.request.body.is_public).toBeTrue();
+      req.flush(mockComment);
+    });
+
+    it('should send FormData when files are provided', () => {
+      const file = new File(['hello'], 'note.txt', { type: 'text/plain' });
+      service.create(10, 'With file', true, [file]).subscribe();
+
+      const req = httpMock.expectOne('/api/tasks/10/comments/');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body instanceof FormData).toBeTrue();
+      const fd = req.request.body as FormData;
+      expect(fd.get('content')).toBe('With file');
+      expect(fd.get('is_public')).toBe('true');
+      expect(fd.getAll('files').length).toBe(1);
+      req.flush(mockComment);
+    });
+
+    it('should not use FormData when files array is empty', () => {
+      service.create(10, 'Plain', true, []).subscribe();
+      const req = httpMock.expectOne('/api/tasks/10/comments/');
+      expect(req.request.body instanceof FormData).toBeFalse();
+      expect(req.request.body).toEqual({ content: 'Plain', is_public: true });
       req.flush(mockComment);
     });
   });

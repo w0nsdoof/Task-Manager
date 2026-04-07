@@ -298,7 +298,11 @@
     "public": "Public",
     "post": "Post",
     "private": "Private",
-    "mentions": "Mentions:"
+    "mentions": "Mentions:",
+    "attach": "Attach files",
+    "removeAttachment": "Remove",
+    "attachmentTooLarge": "{{name}} exceeds 25 MB and was not attached",
+    "attachments": "Attachments"
   },
   "errors": {
     "unexpected": "An unexpected error occurred",
