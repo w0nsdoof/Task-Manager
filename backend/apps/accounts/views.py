@@ -8,7 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsManager
+from apps.accounts.permissions import IsManager, IsManagerOrEngineer
 from apps.accounts.serializers import (
     MeSerializer,
     UserCreateSerializer,
@@ -68,6 +68,11 @@ class UserViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     search_fields = ["email", "first_name", "last_name"]
     ordering_fields = ["email", "date_joined"]
     ordering = ["-date_joined"]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [IsManagerOrEngineer()]
+        return super().get_permissions()
 
     def get_queryset(self):
         if self.request.user.is_superadmin:
