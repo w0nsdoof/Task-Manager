@@ -14,8 +14,14 @@ class TestUserList:
         assert resp.status_code == 200
         assert resp.data["count"] >= 3  # manager + 2 engineers
 
-    def test_engineer_cannot_list_users(self, engineer_client):
+    def test_engineer_can_list_users(self, engineer_client, organization):
+        EngineerFactory.create_batch(2, organization=organization)
         resp = engineer_client.get(USERS_URL)
+        assert resp.status_code == 200
+        assert resp.data["count"] >= 3  # engineer + 2 engineers
+
+    def test_client_cannot_list_users(self, client_user_client):
+        resp = client_user_client.get(USERS_URL)
         assert resp.status_code == 403
 
 
