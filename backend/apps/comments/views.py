@@ -1,9 +1,15 @@
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.attachments.models import Attachment
+from apps.attachments.serializers import (
+    ALLOWED_CONTENT_TYPES,
+    MAX_FILE_SIZE,
+)
 from apps.audit.models import AuditLogEntry
 from apps.audit.services import create_audit_entry
 from apps.comments.models import Comment
@@ -28,11 +34,17 @@ from apps.tasks.models import Task
         summary="Add a comment to a task",
         description=(
             "Use @FirstName LastName to mention users (they will be notified). "
-            "Clients cannot create comments (403)."
+            "Clients cannot create comments (403). "
+            "Send as multipart/form-data with repeated `files` fields to attach files "
+            "(max 25 MB each, same MIME whitelist as task attachments)."
         ),
-        request=CommentCreateSerializer,
+        request={
+            "application/json": CommentCreateSerializer,
+            "multipart/form-data": CommentCreateSerializer,
+        },
         responses={
             201: CommentSerializer,
+            400: OpenApiResponse(description="Invalid file (too large or unsupported type)"),
             403: OpenApiResponse(description="Clients cannot create comments"),
         },
     ),
@@ -73,6 +85,7 @@ from apps.tasks.models import Task
 class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
     ordering = ["-created_at"]
     http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
     queryset = Comment.objects.none()
@@ -87,11 +100,28 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         task = self._get_scoped_task()
-        qs = Comment.objects.filter(task=task).select_related("author").prefetch_related("mentions")
+        qs = (
+            Comment.objects.filter(task=task)
+            .select_related("author")
+            .prefetch_related("mentions", "attachments__uploaded_by")
+        )
         user = self.request.user
         if user.role == "client":
             qs = qs.filter(is_public=True)
         return qs
+
+    def _validate_uploaded_files(self, files):
+        """Apply same size/MIME limits as task attachments. Raises ValidationError on failure."""
+        from rest_framework.exceptions import ValidationError
+
+        errors = []
+        for f in files:
+            if f.size > MAX_FILE_SIZE:
+                errors.append(f"'{f.name}': file size exceeds 25 MB limit.")
+            elif f.content_type not in ALLOWED_CONTENT_TYPES:
+                errors.append(f"'{f.name}': file type '{f.content_type}' is not allowed.")
+        if errors:
+            raise ValidationError({"files": errors})
 
     def _get_owned_comment(self, request, task, pk):
         """Fetch comment in this task and assert the requester is the author."""
@@ -111,8 +141,21 @@ class CommentViewSet(viewsets.ModelViewSet):
             )
 
         task = self._get_scoped_task()
-        serializer = CommentCreateSerializer(data=request.data)
+
+        # Multipart sends repeated `files` fields; collect them off request.FILES
+        # so the serializer can validate the rest of the payload as plain fields.
+        uploaded_files = request.FILES.getlist("files") if hasattr(request, "FILES") else []
+
+        serializer = CommentCreateSerializer(
+            data={
+                "content": request.data.get("content"),
+                "is_public": request.data.get("is_public", True),
+            }
+        )
         serializer.is_valid(raise_exception=True)
+
+        if uploaded_files:
+            self._validate_uploaded_files(uploaded_files)
 
         comment = Comment.objects.create(
             task=task,
@@ -120,6 +163,24 @@ class CommentViewSet(viewsets.ModelViewSet):
             content=serializer.validated_data["content"],
             is_public=serializer.validated_data["is_public"],
         )
+
+        for uploaded_file in uploaded_files:
+            Attachment.objects.create(
+                task=task,
+                comment=comment,
+                file=uploaded_file,
+                original_filename=uploaded_file.name,
+                file_size=uploaded_file.size,
+                content_type=uploaded_file.content_type or "application/octet-stream",
+                uploaded_by=request.user,
+            )
+            create_audit_entry(
+                task=task,
+                actor=request.user,
+                action=AuditLogEntry.Action.FILE_ATTACHED,
+                field_name="comment_attachment",
+                new_value=uploaded_file.name,
+            )
 
         from apps.telegram.templates import build_telegram_context
 
@@ -165,7 +226,7 @@ class CommentViewSet(viewsets.ModelViewSet):
                 )
 
         return Response(
-            CommentSerializer(comment).data,
+            CommentSerializer(comment, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -214,7 +275,7 @@ class CommentViewSet(viewsets.ModelViewSet):
                     telegram_context=ctx,
                 )
 
-        return Response(CommentSerializer(comment).data)
+        return Response(CommentSerializer(comment, context={"request": request}).data)
 
     def destroy(self, request, task_pk=None, pk=None):
         task = self._get_scoped_task()

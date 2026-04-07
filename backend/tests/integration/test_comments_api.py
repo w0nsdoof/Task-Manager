@@ -1,5 +1,7 @@
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 
+from apps.attachments.models import Attachment
 from apps.comments.models import Comment
 from apps.notifications.models import Notification
 from tests.factories import EngineerFactory, TaskFactory
@@ -232,3 +234,99 @@ class TestCommentDelete:
 
         resp = api_client.delete(comment_detail_url(task_b.id, comment.id))
         assert resp.status_code == 404
+
+
+@pytest.mark.django_db
+class TestCommentAttachments:
+    def _png(self, name="screenshot.png"):
+        # 1x1 transparent PNG (smallest valid PNG payload)
+        png_bytes = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf"
+            b"\xc0\x00\x00\x00\x03\x00\x01\xc6\xfb\xc7\x9b\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        return SimpleUploadedFile(name, png_bytes, content_type="image/png")
+
+    def test_engineer_uploads_files_with_comment(self, engineer_client, task):
+        resp = engineer_client.post(
+            comments_url(task.id),
+            {
+                "content": "Look at this",
+                "is_public": "true",
+                "files": [self._png("a.png"), self._png("b.png")],
+            },
+            format="multipart",
+        )
+        assert resp.status_code == 201, resp.content
+        assert len(resp.data["attachments"]) == 2
+        filenames = sorted(a["filename"] for a in resp.data["attachments"])
+        assert filenames == ["a.png", "b.png"]
+
+        comment_id = resp.data["id"]
+        atts = Attachment.objects.filter(comment_id=comment_id)
+        assert atts.count() == 2
+        # comment attachments must also carry the task FK so download URL works
+        assert all(a.task_id == task.id for a in atts)
+
+    def test_list_returns_comment_attachments(self, engineer_client, task):
+        engineer_client.post(
+            comments_url(task.id),
+            {"content": "With file", "is_public": "true", "files": [self._png()]},
+            format="multipart",
+        )
+        resp = engineer_client.get(comments_url(task.id))
+        assert resp.status_code == 200
+        results = resp.data["results"]
+        assert len(results) == 1
+        assert len(results[0]["attachments"]) == 1
+        assert results[0]["attachments"][0]["filename"] == "screenshot.png"
+
+    def test_oversize_file_rejected(self, engineer_client, task):
+        big = SimpleUploadedFile(
+            "huge.png", b"x" * (26 * 1024 * 1024), content_type="image/png"
+        )
+        resp = engineer_client.post(
+            comments_url(task.id),
+            {"content": "too big", "is_public": "true", "files": [big]},
+            format="multipart",
+        )
+        assert resp.status_code == 400
+        # Project's custom exception handler wraps errors under "errors"
+        errors = resp.data.get("errors", resp.data)
+        assert "files" in errors
+
+    def test_disallowed_mime_rejected(self, engineer_client, task):
+        evil = SimpleUploadedFile(
+            "run.exe", b"MZ\x90\x00", content_type="application/x-msdownload"
+        )
+        resp = engineer_client.post(
+            comments_url(task.id),
+            {"content": "nope", "is_public": "true", "files": [evil]},
+            format="multipart",
+        )
+        assert resp.status_code == 400
+        errors = resp.data.get("errors", resp.data)
+        assert "files" in errors
+
+    def test_text_only_comment_still_works(self, engineer_client, task):
+        # Regression: ensure JSON-only POST (no files) still succeeds.
+        resp = engineer_client.post(
+            comments_url(task.id),
+            {"content": "Just text", "is_public": True},
+            format="json",
+        )
+        assert resp.status_code == 201
+        assert resp.data["attachments"] == []
+
+    def test_deleting_comment_cascades_attachments(self, api_client, task, engineer):
+        api_client.force_authenticate(user=engineer)
+        create = api_client.post(
+            comments_url(task.id),
+            {"content": "delete me", "is_public": "true", "files": [self._png()]},
+            format="multipart",
+        )
+        comment_id = create.data["id"]
+        assert Attachment.objects.filter(comment_id=comment_id).count() == 1
+
+        api_client.delete(comment_detail_url(task.id, comment_id))
+        assert Attachment.objects.filter(comment_id=comment_id).count() == 0

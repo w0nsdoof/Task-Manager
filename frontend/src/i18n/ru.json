@@ -298,7 +298,11 @@
     "public": "Публичный",
     "post": "Отправить",
     "private": "Приватный",
-    "mentions": "Упоминания:"
+    "mentions": "Упоминания:",
+    "attach": "Прикрепить файлы",
+    "removeAttachment": "Удалить",
+    "attachmentTooLarge": "{{name}} превышает 25 МБ и не был прикреплён",
+    "attachments": "Вложения"
   },
   "errors": {
     "unexpected": "Произошла непредвиденная ошибка",

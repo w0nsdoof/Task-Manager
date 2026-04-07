@@ -6,6 +6,13 @@ class Attachment(models.Model):
     task = models.ForeignKey(
         "tasks.Task", on_delete=models.CASCADE, related_name="attachments"
     )
+    comment = models.ForeignKey(
+        "comments.Comment",
+        on_delete=models.CASCADE,
+        related_name="attachments",
+        null=True,
+        blank=True,
+    )
     file = models.FileField(upload_to="attachments/%Y/%m/")
     original_filename = models.CharField(max_length=255)
     file_size = models.PositiveIntegerField()

@@ -10,12 +10,23 @@ export interface CommentAuthor {
   role: string;
 }
 
+export interface CommentAttachment {
+  id: number;
+  filename: string;
+  file_size: number;
+  content_type: string;
+  uploaded_by: { id: number; first_name: string; last_name: string };
+  uploaded_at: string;
+  download_url: string;
+}
+
 export interface Comment {
   id: number;
   author: CommentAuthor;
   content: string;
   is_public: boolean;
   mentions: { id: number; first_name: string; last_name: string }[];
+  attachments: CommentAttachment[];
   created_at: string;
 }
 
@@ -38,10 +49,22 @@ export class CommentService {
     );
   }
 
-  create(taskId: number, content: string, isPublic = true): Observable<Comment> {
-    return this.http.post<Comment>(`${environment.apiUrl}/tasks/${taskId}/comments/`, {
-      content,
-      is_public: isPublic,
-    });
+  create(
+    taskId: number,
+    content: string,
+    isPublic = true,
+    files: File[] = [],
+  ): Observable<Comment> {
+    const url = `${environment.apiUrl}/tasks/${taskId}/comments/`;
+    if (!files.length) {
+      return this.http.post<Comment>(url, { content, is_public: isPublic });
+    }
+    const formData = new FormData();
+    formData.append('content', content);
+    formData.append('is_public', String(isPublic));
+    for (const f of files) {
+      formData.append('files', f, f.name);
+    }
+    return this.http.post<Comment>(url, formData);
   }
 }
