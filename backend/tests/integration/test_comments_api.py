@@ -339,6 +339,40 @@ class TestCommentAttachments:
         assert resp.status_code == 201
         assert resp.data["attachments"] == []
 
+    def test_attachment_only_comment_allowed(self, engineer_client, task):
+        # A file with no text body should be accepted (the text field is optional
+        # whenever at least one attachment is present).
+        resp = engineer_client.post(
+            comments_url(task.id),
+            {"content": "", "is_public": "true", "files": [self._png("only.png")]},
+            format="multipart",
+        )
+        assert resp.status_code == 201, resp.content
+        assert resp.data["content"] == ""
+        assert len(resp.data["attachments"]) == 1
+        assert resp.data["attachments"][0]["filename"] == "only.png"
+
+    def test_attachment_only_comment_without_content_field(self, engineer_client, task):
+        # Same as above but the client omits the `content` field entirely.
+        resp = engineer_client.post(
+            comments_url(task.id),
+            {"is_public": "true", "files": [self._png("noContentField.png")]},
+            format="multipart",
+        )
+        assert resp.status_code == 201, resp.content
+        assert resp.data["content"] == ""
+        assert len(resp.data["attachments"]) == 1
+
+    def test_empty_comment_without_files_rejected(self, engineer_client, task):
+        # Guard: empty text AND no files must still be a 400, otherwise the API
+        # would happily create empty-noise comments.
+        resp = engineer_client.post(
+            comments_url(task.id),
+            {"content": "   ", "is_public": True},
+            format="json",
+        )
+        assert resp.status_code == 400
+
     def test_deleting_comment_cascades_attachments(self, api_client, task, engineer):
         api_client.force_authenticate(user=engineer)
         create = api_client.post(
