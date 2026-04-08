@@ -148,11 +148,22 @@ class CommentViewSet(viewsets.ModelViewSet):
 
         serializer = CommentCreateSerializer(
             data={
-                "content": request.data.get("content"),
+                "content": request.data.get("content", ""),
                 "is_public": request.data.get("is_public", True),
             }
         )
         serializer.is_valid(raise_exception=True)
+
+        content = (serializer.validated_data.get("content") or "").strip()
+
+        # Allow attachment-only comments, but require *something* — either text
+        # or at least one file. Otherwise we'd create empty noise comments.
+        if not content and not uploaded_files:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError(
+                {"content": "Either comment text or at least one file attachment is required."}
+            )
 
         if uploaded_files:
             self._validate_uploaded_files(uploaded_files)
@@ -160,7 +171,7 @@ class CommentViewSet(viewsets.ModelViewSet):
         comment = Comment.objects.create(
             task=task,
             author=request.user,
-            content=serializer.validated_data["content"],
+            content=content,
             is_public=serializer.validated_data["is_public"],
         )
 

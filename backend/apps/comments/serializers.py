@@ -40,8 +40,13 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class CommentCreateSerializer(serializers.Serializer):
     content = serializers.CharField(
-        min_length=1,
-        help_text="Comment text. Use @FirstName LastName to mention users.",
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text=(
+            "Comment text. Use @FirstName LastName to mention users. "
+            "Optional when at least one file is attached."
+        ),
     )
     is_public = serializers.BooleanField(
         default=True,
