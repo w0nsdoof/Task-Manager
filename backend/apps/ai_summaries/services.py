@@ -1,5 +1,4 @@
 import copy
-import json
 import logging
 import time
 
@@ -18,27 +17,53 @@ from .prompts import (
 
 logger = logging.getLogger(__name__)
 
-FALLBACK_TEMPLATE = """\
+# Temperature override per period type. Daily summaries should be near-deterministic
+# (factual recap of one day) while weekly/on-demand summaries can use the configured
+# default for narrative variety.
+DAILY_TEMPERATURE = 0.1
+
+# Per-section ordering for parsed sections in storage. Daily uses the short shape;
+# weekly/on-demand use the full 5-section shape.
+SECTION_ORDER = ["Overview", "Key Metrics", "Highlights", "Risks & Blockers", "Recommendations"]
+DAILY_SECTION_ORDER = ["Overview", "Watchlist"]
+
+# How many rows from each breakdown to send the LLM. The full data lives in
+# raw_data; the prompt only needs the head of the distribution.
+TOP_CLIENTS = 5
+TOP_ENGINEERS = 5
+TOP_TAGS = 5
+STUCK_TASKS_IN_PROMPT = 5
+
+FALLBACK_TEMPLATE_DAILY = """\
 ## Overview
-Report Summary ({period_type}) for {start_date} to {end_date}.
+{created} tasks created and {closed} closed on {start_date}. \
+Completion rate: {completion_rate}. Currently {overdue} overdue and {unassigned} unassigned.
+
+## Watchlist
+{stuck_line}
+{priority_line}
+
+Note: This summary was generated from a template because the AI service was unavailable. \
+An AI-enhanced summary may be regenerated later."""
+
+FALLBACK_TEMPLATE_FULL = """\
+## Overview
+{period_type_label} for {start_date} to {end_date}: {created} tasks created, {closed} closed, \
+{overdue} overdue, {unassigned} unassigned.
 
 ## Key Metrics
-- Total tasks: {total}
-- Created in period: {created}
-- Completed in period: {closed}
-- Currently overdue: {overdue}
-- Avg resolution time: {avg_resolution}
 - Completion rate: {completion_rate}
-- Unassigned active tasks: {unassigned}
+- Lead time (created → done): {lead_time_line}
+- Cycle time (in_progress → done): {cycle_time_line}
 
 ## Highlights
-Priority breakdown:
-{priority_breakdown}
-
-Top clients by activity:
+Top clients (by activity in period):
 {client_breakdown}
 
-Tag distribution:
+Top engineers:
+{engineer_breakdown}
+
+Top tags:
 {tag_breakdown}
 
 ## Risks & Blockers
@@ -46,16 +71,12 @@ Tag distribution:
 {stuck_warning}
 
 ## Recommendations
-Engineer workload:
-{engineer_breakdown}
+No actionable items — this template is a fallback. Regenerate the summary once the AI service is available.
 
-Note: This summary was generated using a template because the AI service \
-was temporarily unavailable. An AI-enhanced summary may be regenerated later."""
-
-SECTION_ORDER = ["Overview", "Key Metrics", "Highlights", "Risks & Blockers", "Recommendations"]
+Note: This summary was generated from a template because the AI service was unavailable."""
 
 
-def call_llm(system_prompt, user_prompt):
+def call_llm(system_prompt, user_prompt, temperature=None):
     """Call LLM via LiteLLM. Returns (text, model, prompt_tokens, completion_tokens)."""
     import litellm
 
@@ -69,7 +90,7 @@ def call_llm(system_prompt, user_prompt):
             {"role": "user", "content": user_prompt},
         ],
         "max_tokens": settings.LLM_MAX_TOKENS,
-        "temperature": settings.LLM_TEMPERATURE,
+        "temperature": temperature if temperature is not None else settings.LLM_TEMPERATURE,
     }
     if settings.LLM_API_KEY:
         kwargs["api_key"] = settings.LLM_API_KEY
@@ -109,13 +130,15 @@ def parse_sections(text):
     return sections
 
 
-def anonymize_metrics(*metrics_list):
-    """Replace real client/engineer names with pseudonyms across one or more metrics dicts.
+# ---------- Anonymization helpers (kept for backward-compat with tests) ----------
+# These are no longer wired into the generation pipeline. The original concern
+# was sending org-internal client/engineer names to a third-party LLM, but the
+# manager generating the report already has authenticated access to those names
+# inside their own org, so anonymizing only blanded-out the output. The helpers
+# stay here so callers/tests that import them keep working.
 
-    Returns (list_of_anonymized_copies, reverse_mapping).
-    The reverse mapping maps pseudonyms back to real names.
-    """
-    # Collect all unique names from all metrics dicts.
+def anonymize_metrics(*metrics_list):
+    """Replace real client/engineer names with pseudonyms across one or more metrics dicts."""
     client_names = []
     engineer_names = []
     seen_clients = set()
@@ -135,17 +158,14 @@ def anonymize_metrics(*metrics_list):
                 seen_engineers.add(name)
                 engineer_names.append(name)
 
-    # Build forward mapping (real -> pseudonym).
     forward = {}
     for i, name in enumerate(client_names):
         forward[name] = f"Client {chr(65 + i)}" if i < 26 else f"Client {i + 1}"
     for i, name in enumerate(engineer_names):
         forward[name] = f"Engineer {i + 1}"
 
-    # Build reverse mapping (pseudonym -> real).
     reverse = {v: k for k, v in forward.items()}
 
-    # Deep-copy and replace names in each metrics dict.
     results = []
     for metrics in metrics_list:
         if not metrics:
@@ -166,15 +186,145 @@ def anonymize_metrics(*metrics_list):
 
 
 def deanonymize_text(text, reverse_mapping):
-    """Replace pseudonyms in LLM output text with real names.
-
-    Sorts pseudonyms longest-first to avoid partial replacements.
-    """
+    """Replace pseudonyms in LLM output text with real names."""
     if not reverse_mapping:
         return text
     for pseudonym in sorted(reverse_mapping, key=len, reverse=True):
         text = text.replace(pseudonym, reverse_mapping[pseudonym])
     return text
+
+
+# ---------- Markdown rendering ----------
+
+def _fmt_num(value, suffix=""):
+    if value is None:
+        return "N/A"
+    return f"{value}{suffix}"
+
+
+def _fmt_duration(d):
+    """Format a duration dict from reports.services._summarize_durations."""
+    if not d or d.get("count", 0) == 0 or d.get("median_hours") is None:
+        return "N/A"
+    return (
+        f"median {d['median_hours']}h, p90 {d['p90_hours']}h, "
+        f"avg {d['avg_hours']}h (n={d['count']})"
+    )
+
+
+def render_metrics_as_markdown(metrics):
+    """Render the report-data dict as a compact, model-friendly Markdown block.
+
+    Sends only what the LLM needs. The full raw_data is still stored on the
+    summary row for audit/UI use.
+    """
+    if metrics is None:
+        return "_No metrics available._"
+
+    tasks = metrics.get("tasks", {}) or {}
+    by_status = tasks.get("by_status", {}) or {}
+    by_priority = tasks.get("by_priority", {}) or {}
+    stuck = tasks.get("stuck_waiting", {}) or {}
+    lead_time = tasks.get("lead_time")
+    cycle_time = tasks.get("cycle_time")
+
+    parts = []
+
+    parts.append("## Headline numbers")
+    parts.append("| Metric | Value |")
+    parts.append("|---|---|")
+    parts.append(f"| Total tasks (all-time, in org) | {tasks.get('total', 0)} |")
+    parts.append(f"| Created in period | {tasks.get('created_in_period', 0)} |")
+    parts.append(f"| Closed in period | {tasks.get('closed_in_period', 0)} |")
+    parts.append(f"| Completion rate | {_fmt_num(tasks.get('completion_rate'), '%')} |")
+    parts.append(f"| Currently overdue | {tasks.get('overdue', 0)} |")
+    parts.append(f"| Unassigned active | {tasks.get('unassigned_count', 0)} |")
+    parts.append(f"| Lead time (created → done) | {_fmt_duration(lead_time)} |")
+    parts.append(f"| Cycle time (in_progress → done) | {_fmt_duration(cycle_time)} |")
+    parts.append("")
+
+    parts.append("## Status distribution (current state, all-time)")
+    parts.append("| Status | Count |")
+    parts.append("|---|---|")
+    for status_name, count in by_status.items():
+        parts.append(f"| {status_name} | {count} |")
+    parts.append("")
+
+    parts.append("## Priority distribution (current state, all-time)")
+    parts.append("| Priority | Count |")
+    parts.append("|---|---|")
+    for priority, count in by_priority.items():
+        parts.append(f"| {priority} | {count} |")
+    parts.append("")
+
+    by_client = (metrics.get("by_client") or [])[:TOP_CLIENTS]
+    if by_client:
+        parts.append(f"## Top {len(by_client)} clients in period")
+        parts.append("| Client | Tasks | Done |")
+        parts.append("|---|---|---|")
+        for c in by_client:
+            parts.append(f"| {c['client_name']} | {c['total']} | {c['done']} |")
+        parts.append("")
+
+    by_engineer = (metrics.get("by_engineer") or [])[:TOP_ENGINEERS]
+    if by_engineer:
+        parts.append(f"## Top {len(by_engineer)} engineers in period")
+        parts.append("| Engineer | Assigned | Done |")
+        parts.append("|---|---|---|")
+        for e in by_engineer:
+            parts.append(f"| {e['engineer_name']} | {e['assigned']} | {e['done']} |")
+        parts.append("")
+
+    by_tag = (metrics.get("by_tag") or [])[:TOP_TAGS]
+    if by_tag:
+        parts.append(f"## Top {len(by_tag)} tags in period")
+        parts.append("| Tag | Count |")
+        parts.append("|---|---|")
+        for t in by_tag:
+            parts.append(f"| {t['tag_name']} | {t['count']} |")
+        parts.append("")
+
+    stuck_count = stuck.get("count", 0)
+    parts.append(f"## Stuck-waiting tasks (≥3 days in 'waiting'): {stuck_count} total")
+    sample = (stuck.get("sample") or [])[:STUCK_TASKS_IN_PROMPT]
+    if sample:
+        parts.append("| Title | Priority | Waiting (hours) |")
+        parts.append("|---|---|---|")
+        for t in sample:
+            wh = t.get("waiting_hours")
+            wh_str = f"{wh}" if wh is not None else "?"
+            parts.append(f"| {t.get('title', '')} | {t.get('priority', '')} | {wh_str} |")
+    else:
+        parts.append("_None._")
+    parts.append("")
+
+    return "\n".join(parts).strip()
+
+
+def render_deltas_as_markdown(deltas):
+    """Render week-over-week deltas dict as a compact Markdown table."""
+    if not deltas:
+        return "_No previous-period data available._"
+
+    parts = ["| Metric | Current | Previous | Change | Change % |", "|---|---|---|---|---|"]
+    label_map = {
+        "total": "Total tasks",
+        "created_in_period": "Created in period",
+        "closed_in_period": "Closed in period",
+        "overdue": "Overdue",
+        "unassigned_count": "Unassigned",
+        "avg_resolution_time_hours": "Avg lead time (h)",
+        "completion_rate": "Completion rate (%)",
+    }
+    for key, d in deltas.items():
+        label = label_map.get(key, key)
+        change_pct = d.get("change_pct")
+        change_pct_str = f"{change_pct}%" if change_pct is not None else "N/A"
+        parts.append(
+            f"| {label} | {d.get('current')} | {d.get('previous')} | "
+            f"{d.get('change')} | {change_pct_str} |"
+        )
+    return "\n".join(parts)
 
 
 def compute_deltas(current_metrics, prev_metrics):
@@ -211,59 +361,84 @@ def generate_fallback_summary(period_type, metrics_data):
     tasks = metrics_data.get("tasks", {})
     period = metrics_data.get("period", {})
 
-    priority_lines = []
-    for p, count in tasks.get("by_priority", {}).items():
-        priority_lines.append(f"- {p}: {count}")
-    priority_breakdown = "\n".join(priority_lines) if priority_lines else "- No data"
-
-    client_lines = []
-    for c in metrics_data.get("by_client", [])[:5]:
-        client_lines.append(f"- {c['client_name']}: {c['total']} tasks ({c['done']} done)")
-    client_breakdown = "\n".join(client_lines) if client_lines else "- No data"
-
-    engineer_lines = []
-    for e in metrics_data.get("by_engineer", [])[:5]:
-        engineer_lines.append(f"- {e['engineer_name']}: {e['assigned']} assigned ({e['done']} done)")
-    engineer_breakdown = "\n".join(engineer_lines) if engineer_lines else "- No data"
-
-    tag_lines = []
-    for t in metrics_data.get("by_tag", [])[:5]:
-        tag_lines.append(f"- {t['tag_name']}: {t['count']} tasks")
-    tag_breakdown = "\n".join(tag_lines) if tag_lines else "- No data"
-
-    overdue_count = tasks.get("overdue", 0)
-    overdue_warning = f"- {overdue_count} overdue tasks need attention." if overdue_count else "- No overdue tasks."
-
-    stuck = tasks.get("stuck_waiting", {})
-    stuck_count = stuck.get("count", 0)
-    if stuck_count:
-        stuck_titles = ", ".join(t["title"] for t in stuck.get("tasks", []))
-        stuck_warning = f"- {stuck_count} tasks stuck in waiting for 3+ days: {stuck_titles}"
-    else:
-        stuck_warning = "- No stuck tasks."
-
-    avg_res = tasks.get("avg_resolution_time_hours")
-    avg_resolution = f"{avg_res} hours" if avg_res is not None else "N/A"
     comp_rate = tasks.get("completion_rate")
     completion_rate = f"{comp_rate}%" if comp_rate is not None else "N/A"
 
-    return FALLBACK_TEMPLATE.format(
-        period_type=period_type,
+    overdue_count = tasks.get("overdue", 0)
+    overdue_warning = (
+        f"- {overdue_count} overdue tasks need attention." if overdue_count else "- No overdue tasks."
+    )
+
+    stuck = tasks.get("stuck_waiting", {})
+    stuck_count = stuck.get("count", 0)
+    stuck_sample = stuck.get("sample") or []
+    if stuck_count:
+        stuck_titles = ", ".join(t.get("title", "") for t in stuck_sample[:5])
+        stuck_warning = f"- {stuck_count} tasks stuck in waiting for 3+ days: {stuck_titles}"
+        stuck_line = (
+            f"{stuck_count} task(s) stuck waiting 3+ days; longest: "
+            f"{stuck_sample[0].get('title', 'unknown') if stuck_sample else 'unknown'}."
+        )
+    else:
+        stuck_warning = "- No stuck tasks."
+        stuck_line = "No stuck-waiting tasks."
+
+    priority_counts = tasks.get("by_priority", {}) or {}
+    critical_high = priority_counts.get("critical", 0) + priority_counts.get("high", 0)
+    priority_line = (
+        f"{critical_high} active high/critical-priority task(s) in queue."
+        if critical_high
+        else "No high or critical priority work in the queue."
+    )
+
+    if period_type == "daily":
+        return FALLBACK_TEMPLATE_DAILY.format(
+            start_date=period.get("from", "N/A"),
+            created=tasks.get("created_in_period", 0),
+            closed=tasks.get("closed_in_period", 0),
+            completion_rate=completion_rate,
+            overdue=overdue_count,
+            unassigned=tasks.get("unassigned_count", 0),
+            stuck_line=stuck_line,
+            priority_line=priority_line,
+        )
+
+    client_lines = [
+        f"- {c['client_name']}: {c['total']} tasks ({c['done']} done)"
+        for c in (metrics_data.get("by_client") or [])[:5]
+    ]
+    client_breakdown = "\n".join(client_lines) if client_lines else "- No data"
+
+    engineer_lines = [
+        f"- {e['engineer_name']}: {e['assigned']} assigned ({e['done']} done)"
+        for e in (metrics_data.get("by_engineer") or [])[:5]
+    ]
+    engineer_breakdown = "\n".join(engineer_lines) if engineer_lines else "- No data"
+
+    tag_lines = [
+        f"- {t['tag_name']}: {t['count']} tasks"
+        for t in (metrics_data.get("by_tag") or [])[:5]
+    ]
+    tag_breakdown = "\n".join(tag_lines) if tag_lines else "- No data"
+
+    period_type_label = "Weekly summary" if period_type == "weekly" else "Custom-period summary"
+
+    return FALLBACK_TEMPLATE_FULL.format(
+        period_type_label=period_type_label,
         start_date=period.get("from", "N/A"),
         end_date=period.get("to", "N/A"),
-        total=tasks.get("total", 0),
         created=tasks.get("created_in_period", 0),
         closed=tasks.get("closed_in_period", 0),
         overdue=overdue_count,
-        avg_resolution=avg_resolution,
-        completion_rate=completion_rate,
         unassigned=tasks.get("unassigned_count", 0),
-        priority_breakdown=priority_breakdown,
+        completion_rate=completion_rate,
+        lead_time_line=_fmt_duration(tasks.get("lead_time")),
+        cycle_time_line=_fmt_duration(tasks.get("cycle_time")),
         client_breakdown=client_breakdown,
+        engineer_breakdown=engineer_breakdown,
         tag_breakdown=tag_breakdown,
         overdue_warning=overdue_warning,
         stuck_warning=stuck_warning,
-        engineer_breakdown=engineer_breakdown,
     )
 
 
@@ -277,33 +452,33 @@ def collect_metrics(period_start, period_end, organization=None):
 
 
 def _build_user_prompt(period_type, period_start, period_end, metrics_data, prev_metrics=None):
-    """Build the appropriate user prompt for the period type."""
-    metrics_json = json.dumps(metrics_data, indent=2, default=str)
+    """Build the appropriate user prompt for the period type using Markdown rendering."""
+    metrics_markdown = render_metrics_as_markdown(metrics_data)
 
     if period_type == "daily":
         return DAILY_USER_PROMPT.format(
             period_start=period_start,
-            metrics_json=metrics_json,
+            metrics_markdown=metrics_markdown,
         )
     elif period_type == "weekly":
         if prev_metrics:
             deltas = compute_deltas(metrics_data, prev_metrics)
             trend_section = WEEKLY_TREND_SECTION.format(
-                deltas_json=json.dumps(deltas, indent=2, default=str),
+                deltas_markdown=render_deltas_as_markdown(deltas),
             )
         else:
             trend_section = WEEKLY_NO_TREND_SECTION
         return WEEKLY_USER_PROMPT.format(
             period_start=period_start,
             period_end=period_end,
-            metrics_json=metrics_json,
+            metrics_markdown=metrics_markdown,
             trend_section=trend_section,
         )
     else:
         return ON_DEMAND_USER_PROMPT.format(
             period_start=period_start,
             period_end=period_end,
-            metrics_json=metrics_json,
+            metrics_markdown=metrics_markdown,
         )
 
 
@@ -358,28 +533,22 @@ def generate_summary_for_period(summary_id, prev_metrics=None):
     summary.raw_data = metrics_data
     summary.save(update_fields=["raw_data"])
 
-    # Anonymize names before sending to LLM.
-    metrics_list = [metrics_data]
-    if prev_metrics:
-        metrics_list.append(prev_metrics)
-    anon_list, reverse_map = anonymize_metrics(*metrics_list)
-    anon_metrics = anon_list[0]
-    anon_prev = anon_list[1] if prev_metrics else None
-
     user_prompt = _build_user_prompt(
         summary.period_type, summary.period_start, summary.period_end,
-        anon_metrics, anon_prev,
+        metrics_data, prev_metrics,
     )
     summary.prompt_text = user_prompt
     summary.save(update_fields=["prompt_text"])
 
+    temperature = DAILY_TEMPERATURE if summary.period_type == ReportSummary.PeriodType.DAILY else None
+
     start_time = time.monotonic()
     try:
-        text, model, prompt_tokens, completion_tokens = call_llm(SYSTEM_PROMPT, user_prompt)
+        text, model, prompt_tokens, completion_tokens = call_llm(
+            SYSTEM_PROMPT, user_prompt, temperature=temperature,
+        )
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
-        # Restore real names in LLM output.
-        text = deanonymize_text(text, reverse_map)
         sections = parse_sections(text)
 
         summary.summary_text = text

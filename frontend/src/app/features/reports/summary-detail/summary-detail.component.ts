@@ -49,11 +49,9 @@ import { AuthService } from '../../../core/services/auth.service';
         </mat-card-header>
         <mat-card-content>
           <div *ngIf="hasSections(); else plainText" class="structured-summary">
-            <div *ngFor="let section of sectionOrder" class="summary-section">
-              <ng-container *ngIf="summary.sections![section]">
-                <h3 class="section-header">{{ section }}</h3>
-                <div class="section-content" [innerHTML]="renderMarkdown(summary.sections![section])"></div>
-              </ng-container>
+            <div *ngFor="let section of orderedSections()" class="summary-section">
+              <h3 class="section-header">{{ section }}</h3>
+              <div class="section-content" [innerHTML]="renderMarkdown(summary.sections![section])"></div>
             </div>
           </div>
           <ng-template #plainText>
@@ -168,7 +166,11 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
   loading = false;
   regenerating = false;
   isManager = false;
-  sectionOrder = ['Overview', 'Key Metrics', 'Highlights', 'Risks & Blockers', 'Recommendations'];
+  // Preferred render order. Daily summaries use the short shape (Overview + Watchlist);
+  // weekly / on-demand use the full shape. Any other section the LLM emits is appended
+  // at the end so the user never silently loses content.
+  private static readonly DAILY_ORDER = ['Overview', 'Watchlist'];
+  private static readonly FULL_ORDER = ['Overview', 'Key Metrics', 'Highlights', 'Risks & Blockers', 'Recommendations'];
   private destroy$ = new Subject<void>();
 
   constructor(
@@ -218,6 +220,19 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
 
   hasSections(): boolean {
     return !!this.summary?.sections && Object.keys(this.summary.sections).length > 0;
+  }
+
+  orderedSections(): string[] {
+    if (!this.summary?.sections) return [];
+    const present = Object.keys(this.summary.sections).filter(
+      (k) => !!this.summary!.sections![k],
+    );
+    const preferred = this.summary.period_type === 'daily'
+      ? SummaryDetailComponent.DAILY_ORDER
+      : SummaryDetailComponent.FULL_ORDER;
+    const ordered = preferred.filter((k) => present.includes(k));
+    const extras = present.filter((k) => !preferred.includes(k));
+    return [...ordered, ...extras];
   }
 
   renderMarkdown(text: string): string {

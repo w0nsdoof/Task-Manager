@@ -1,8 +1,12 @@
 from apps.ai_summaries.services import (
+    _build_user_prompt,
     anonymize_metrics,
     compute_deltas,
     deanonymize_text,
+    generate_fallback_summary,
     parse_sections,
+    render_deltas_as_markdown,
+    render_metrics_as_markdown,
 )
 
 
@@ -150,3 +154,187 @@ class TestComputeDeltas:
         prev = {"tasks": {}}
         deltas = compute_deltas(current, prev)
         assert "avg_resolution_time_hours" not in deltas
+
+
+def _sample_metrics():
+    """A representative metrics dict shaped like reports.services.get_report_data output."""
+    return {
+        "period": {"from": "2026-04-01", "to": "2026-04-07"},
+        "tasks": {
+            "total": 42,
+            "by_status": {"created": 5, "in_progress": 8, "waiting": 3, "done": 25, "archived": 1},
+            "by_priority": {"low": 10, "medium": 20, "high": 8, "critical": 4},
+            "created_in_period": 12,
+            "closed_in_period": 9,
+            "overdue": 4,
+            "avg_resolution_time_hours": 18.5,
+            "unassigned_count": 2,
+            "completion_rate": 75.0,
+            "stuck_waiting": {
+                "count": 2,
+                "sample": [
+                    {"id": 101, "title": "Migrate auth middleware", "priority": "high", "waiting_hours": 96.0},
+                    {"id": 102, "title": "Refactor billing", "priority": "medium", "waiting_hours": 72.0},
+                ],
+            },
+            "lead_time": {"avg_hours": 18.5, "median_hours": 12.0, "p90_hours": 48.0, "count": 9},
+            "cycle_time": {"avg_hours": 6.2, "median_hours": 4.5, "p90_hours": 16.0, "count": 9},
+        },
+        "by_client": [
+            {"client_id": 1, "client_name": "Acme Corp", "total": 8, "done": 5},
+            {"client_id": 2, "client_name": "Widgets Inc", "total": 4, "done": 2},
+        ],
+        "by_engineer": [
+            {"engineer_id": 1, "engineer_name": "John Smith", "assigned": 6, "done": 4},
+            {"engineer_id": 2, "engineer_name": "Jane Doe", "assigned": 3, "done": 1},
+        ],
+        "by_tag": [
+            {"tag_id": 1, "tag_name": "backend", "count": 7},
+            {"tag_id": 2, "tag_name": "frontend", "count": 3},
+        ],
+    }
+
+
+class TestRenderMetricsAsMarkdown:
+    def test_includes_headline_table(self):
+        md = render_metrics_as_markdown(_sample_metrics())
+        assert "## Headline numbers" in md
+        assert "| Total tasks (all-time, in org) | 42 |" in md
+        assert "| Created in period | 12 |" in md
+        assert "| Closed in period | 9 |" in md
+        assert "| Completion rate | 75.0% |" in md
+        assert "| Currently overdue | 4 |" in md
+
+    def test_includes_lead_and_cycle_time_with_median_p90(self):
+        md = render_metrics_as_markdown(_sample_metrics())
+        assert "median 12.0h" in md
+        assert "p90 48.0h" in md
+        assert "median 4.5h" in md
+        assert "p90 16.0h" in md
+
+    def test_includes_status_and_priority_tables(self):
+        md = render_metrics_as_markdown(_sample_metrics())
+        assert "## Status distribution" in md
+        assert "| in_progress | 8 |" in md
+        assert "## Priority distribution" in md
+        assert "| critical | 4 |" in md
+
+    def test_includes_client_engineer_tag_tables_with_real_names(self):
+        md = render_metrics_as_markdown(_sample_metrics())
+        assert "Acme Corp" in md
+        assert "Widgets Inc" in md
+        assert "John Smith" in md
+        assert "Jane Doe" in md
+        assert "| backend | 7 |" in md
+        # Anonymization is gone — these should be the real names.
+        assert "Client A" not in md
+        assert "Engineer 1" not in md
+
+    def test_includes_stuck_task_sample_with_titles_and_hours(self):
+        md = render_metrics_as_markdown(_sample_metrics())
+        assert "Stuck-waiting tasks" in md
+        assert "2 total" in md
+        assert "Migrate auth middleware" in md
+        assert "Refactor billing" in md
+        assert "96.0" in md
+
+    def test_handles_empty_metrics_gracefully(self):
+        md = render_metrics_as_markdown({})
+        assert "Headline numbers" in md  # still renders the headline table with zeros
+        assert "Total tasks (all-time, in org) | 0" in md
+
+    def test_handles_none_metrics(self):
+        assert "No metrics available" in render_metrics_as_markdown(None)
+
+    def test_omits_breakdown_tables_when_empty(self):
+        m = _sample_metrics()
+        m["by_client"] = []
+        m["by_engineer"] = []
+        m["by_tag"] = []
+        md = render_metrics_as_markdown(m)
+        assert "Top" not in md or "Top 0" not in md
+        assert "Acme Corp" not in md
+
+    def test_handles_n_a_for_missing_durations(self):
+        m = _sample_metrics()
+        m["tasks"]["lead_time"] = {"avg_hours": None, "median_hours": None, "p90_hours": None, "count": 0}
+        m["tasks"]["cycle_time"] = None
+        md = render_metrics_as_markdown(m)
+        assert "Lead time (created → done) | N/A" in md
+        assert "Cycle time (in_progress → done) | N/A" in md
+
+
+class TestRenderDeltasAsMarkdown:
+    def test_renders_deltas_table(self):
+        deltas = compute_deltas(
+            {"tasks": {"total": 20, "created_in_period": 10, "closed_in_period": 8}},
+            {"tasks": {"total": 15, "created_in_period": 12, "closed_in_period": 6}},
+        )
+        md = render_deltas_as_markdown(deltas)
+        assert "| Total tasks |" in md
+        assert "| Created in period |" in md
+        assert "| Closed in period |" in md
+        assert "33.3%" in md  # (20-15)/15
+
+    def test_handles_empty(self):
+        assert "No previous-period data" in render_deltas_as_markdown({})
+
+
+class TestBuildUserPrompt:
+    def test_daily_prompt_uses_daily_template(self):
+        prompt = _build_user_prompt("daily", "2026-04-08", "2026-04-08", _sample_metrics())
+        assert "## Overview" in prompt
+        assert "## Watchlist" in prompt
+        # Daily should NOT have the full 5-section template
+        assert "## Recommendations" not in prompt
+        assert "Headline numbers" in prompt
+
+    def test_weekly_prompt_includes_no_trend_section_when_prev_missing(self):
+        prompt = _build_user_prompt("weekly", "2026-04-01", "2026-04-07", _sample_metrics())
+        assert "## Recommendations" in prompt
+        assert "No previous week data available" in prompt
+        assert "Headline numbers" in prompt
+
+    def test_weekly_prompt_includes_trend_section_when_prev_present(self):
+        prev = _sample_metrics()
+        prev["tasks"]["created_in_period"] = 6
+        prompt = _build_user_prompt(
+            "weekly", "2026-04-01", "2026-04-07", _sample_metrics(), prev_metrics=prev,
+        )
+        assert "Week-over-week change" in prompt
+        assert "abs(change_pct) > 20" in prompt
+        # Markdown delta table content
+        assert "| Created in period | 12 | 6 |" in prompt
+
+    def test_on_demand_prompt(self):
+        prompt = _build_user_prompt("on_demand", "2026-04-01", "2026-04-07", _sample_metrics())
+        assert "## Overview" in prompt
+        assert "## Recommendations" in prompt
+        assert "Headline numbers" in prompt
+
+
+class TestFallbackSummary:
+    def test_daily_fallback_uses_two_section_shape(self):
+        text = generate_fallback_summary("daily", _sample_metrics())
+        assert "## Overview" in text
+        assert "## Watchlist" in text
+        assert "## Recommendations" not in text  # daily does not have recommendations
+        assert "Migrate auth middleware" in text  # longest stuck task surfaced
+
+    def test_weekly_fallback_uses_full_shape(self):
+        text = generate_fallback_summary("weekly", _sample_metrics())
+        for section in ["## Overview", "## Key Metrics", "## Highlights", "## Risks & Blockers", "## Recommendations"]:
+            assert section in text
+        assert "Acme Corp" in text
+        assert "median 12.0h" in text  # lead time formatted
+
+    def test_on_demand_fallback_uses_full_shape(self):
+        text = generate_fallback_summary("on_demand", _sample_metrics())
+        assert "Custom-period summary" in text
+        assert "## Recommendations" in text
+
+    def test_fallback_handles_zero_stuck_tasks(self):
+        m = _sample_metrics()
+        m["tasks"]["stuck_waiting"] = {"count": 0, "sample": []}
+        text = generate_fallback_summary("daily", m)
+        assert "No stuck-waiting tasks" in text
