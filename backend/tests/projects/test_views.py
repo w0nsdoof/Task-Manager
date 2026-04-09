@@ -229,7 +229,7 @@ class TestProjectEpics:
 
         # Create tasks: 1 done, 1 in_progress, 1 created — all top-level
         t1 = TaskFactory(created_by=manager, epic=epic, organization=manager.organization, status="done", assignees=[engineer])
-        t2 = TaskFactory(created_by=manager, epic=epic, organization=manager.organization, status="in_progress", assignees=[manager])
+        TaskFactory(created_by=manager, epic=epic, organization=manager.organization, status="in_progress", assignees=[manager])
         TaskFactory(created_by=manager, epic=epic, organization=manager.organization, status="created")
         # Subtask under t1
         TaskFactory(created_by=manager, epic=epic, parent_task=t1, organization=manager.organization, status="done", assignees=[engineer])
