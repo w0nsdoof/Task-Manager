@@ -418,29 +418,52 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
       anyChart = true;
     }
 
-    // Engineer workload stacked bar
-    const engineers: any[] = rawData.by_engineer || [];
-    if (engineers.length > 0) {
-      const names = engineers.map(e => e.engineer_name);
+    // Engineer workload stacked bar (top 7, rest collapsed into "Others")
+    const allEngineers: any[] = rawData.by_engineer || [];
+    if (allEngineers.length > 0) {
+      const MAX_ENG = 7;
+      const top = allEngineers.slice(0, MAX_ENG);
+      const rest = allEngineers.slice(MAX_ENG);
+      const names = top.map(e => e.engineer_name);
+      const doneData = top.map(e => e.done || 0);
+      const ipData = top.map(e => e.in_progress || 0);
+      const odData = top.map(e => e.overdue || 0);
+      if (rest.length > 0) {
+        names.push(`Others (${rest.length})`);
+        doneData.push(rest.reduce((s: number, e: any) => s + (e.done || 0), 0));
+        ipData.push(rest.reduce((s: number, e: any) => s + (e.in_progress || 0), 0));
+        odData.push(rest.reduce((s: number, e: any) => s + (e.overdue || 0), 0));
+      }
       this.engineerChartData = {
         labels: names,
         datasets: [
-          { label: 'Done', data: engineers.map(e => e.done || 0), backgroundColor: '#66bb6a' },
-          { label: 'In Progress', data: engineers.map(e => e.in_progress || 0), backgroundColor: '#42a5f5' },
-          { label: 'Overdue', data: engineers.map(e => e.overdue || 0), backgroundColor: '#ef5350' },
+          { label: 'Done', data: doneData, backgroundColor: '#66bb6a' },
+          { label: 'In Progress', data: ipData, backgroundColor: '#42a5f5' },
+          { label: 'Overdue', data: odData, backgroundColor: '#ef5350' },
         ],
       };
       anyChart = true;
     }
 
-    // Client activity bar
-    const clients: any[] = rawData.by_client || [];
-    if (clients.length > 0) {
+    // Client activity bar (top 7, rest collapsed into "Others")
+    const allClients: any[] = rawData.by_client || [];
+    if (allClients.length > 0) {
+      const MAX_CLI = 7;
+      const top = allClients.slice(0, MAX_CLI);
+      const rest = allClients.slice(MAX_CLI);
+      const labels = top.map(c => c.client_name);
+      const totalData = top.map(c => c.total || 0);
+      const doneData = top.map(c => c.done || 0);
+      if (rest.length > 0) {
+        labels.push(`Others (${rest.length})`);
+        totalData.push(rest.reduce((s: number, c: any) => s + (c.total || 0), 0));
+        doneData.push(rest.reduce((s: number, c: any) => s + (c.done || 0), 0));
+      }
       this.clientChartData = {
-        labels: clients.map(c => c.client_name),
+        labels,
         datasets: [
-          { label: 'Total', data: clients.map(c => c.total || 0), backgroundColor: '#7e57c2' },
-          { label: 'Done', data: clients.map(c => c.done || 0), backgroundColor: '#66bb6a' },
+          { label: 'Total', data: totalData, backgroundColor: '#7e57c2' },
+          { label: 'Done', data: doneData, backgroundColor: '#66bb6a' },
         ],
       };
       // Override: grouped bar for clients
