@@ -8,8 +8,8 @@ REPORT_URL = "/api/reports/summary/"
 @pytest.mark.django_db
 class TestReportSummary:
     def test_manager_gets_report(self, manager_client, manager):
-        client = ClientFactory()
-        eng = EngineerFactory()
+        client = ClientFactory(organization=manager.organization)
+        eng = EngineerFactory(organization=manager.organization)
         TaskFactory(created_by=manager, client=client, assignees=[eng], status="created")
         TaskFactory(created_by=manager, client=client, status="done")
 
@@ -18,8 +18,12 @@ class TestReportSummary:
         assert resp.data["tasks"]["total"] == 2
         assert resp.data["tasks"]["by_status"]["created"] == 1
         assert resp.data["tasks"]["by_status"]["done"] == 1
+        # Without a date filter, by_client/by_engineer use the all-time queryset.
         assert len(resp.data["by_client"]) == 1
         assert len(resp.data["by_engineer"]) == 1
+        assert "lead_time" in resp.data["tasks"]
+        assert "cycle_time" in resp.data["tasks"]
+        assert "sample" in resp.data["tasks"]["stuck_waiting"]
 
     def test_engineer_can_access_reports(self, engineer_client, manager):
         TaskFactory(created_by=manager, status="created")
