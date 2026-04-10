@@ -1,6 +1,7 @@
 from celery.result import AsyncResult
 from django.conf import settings
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 from django.db.models import Count, Prefetch, Q
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -115,13 +116,9 @@ class ProjectViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
                 epics_count=Count("epics", distinct=True),
             )
 
-        explicit_status = self.request.query_params.get("status")
-        if explicit_status:
-            qs = qs.filter(status=explicit_status)
-
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search))
+            explicit_status = self.request.query_params.get("status")
+            if explicit_status:
+                qs = qs.filter(status=explicit_status)
 
         return qs
 
@@ -194,7 +191,7 @@ class ProjectViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["get"], url_path="epics")
     def epics(self, request, pk=None):
-        project = self.get_object()
+        project = get_object_or_404(self.get_queryset(), pk=pk)
         qs = Epic.objects.filter(
             project=project, organization=request.user.organization
         ).select_related(
@@ -202,6 +199,10 @@ class ProjectViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
         ).prefetch_related("tags", _epic_tasks_prefetch()).annotate(
             tasks_count=Count("tasks", filter=Q(tasks__parent_task__isnull=True), distinct=True),
         ).order_by("-created_at")
+
+        search = request.query_params.get("search")
+        if search:
+            qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search))
 
         page = self.paginate_queryset(qs)
         serializer = EpicListSerializer(page, many=True)
