@@ -22,17 +22,30 @@ def _get_redis():
 
 
 def _set_stage(redis_client, epic_id: int, stage: str, meta: dict | None = None):
-    """Write current pipeline stage + metadata to Redis for the polling endpoint."""
-    payload = {"stage": stage, "stage_meta": meta or {}}
+    """Write current pipeline stage + metadata to Redis and broadcast via Channels."""
+    stage_meta = meta or {}
+    payload = {"stage": stage, "stage_meta": stage_meta}
     redis_client.set(
         f"epic_generate:{epic_id}:stage",
         json.dumps(payload),
         ex=300,  # auto-expire after 5 min
     )
+    # Best-effort WS broadcast
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"generation_epic_tasks_{epic_id}",
+            {"type": "generation_stage", "stage": stage, "stage_meta": stage_meta},
+        )
+    except Exception:
+        pass
 
 
 @shared_task(soft_time_limit=90, time_limit=120)
-def generate_epic_tasks(epic_id: int) -> dict:
+def generate_epic_tasks(epic_id: int, model_override: str | None = None) -> dict:
     from apps.projects.models import Epic
 
     redis_client = _get_redis()
@@ -64,9 +77,12 @@ def generate_epic_tasks(epic_id: int) -> dict:
             "token_estimate": token_estimate,
         })
 
-        from apps.ai_summaries.services import call_llm
+        from apps.ai_summaries.services import call_llm, resolve_llm_model
 
-        llm_model = getattr(settings, "LLM_MODEL", "default")
+        llm_model = resolve_llm_model(
+            organization=epic.organization,
+            explicit_model_id=model_override,
+        )
         _set_stage(redis_client, epic_id, "calling_llm", {
             "model": llm_model,
             "started_at": time.time(),
@@ -74,7 +90,9 @@ def generate_epic_tasks(epic_id: int) -> dict:
 
         try:
             start = time.monotonic()
-            text, model, prompt_tokens, completion_tokens = call_llm(system_prompt, user_prompt)
+            text, model, prompt_tokens, completion_tokens = call_llm(
+                system_prompt, user_prompt, model=llm_model,
+            )
             generation_time_ms = int((time.monotonic() - start) * 1000)
         except Exception:
             logger.exception("LLM call failed for epic_id=%s", epic_id)

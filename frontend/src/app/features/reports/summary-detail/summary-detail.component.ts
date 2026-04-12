@@ -1,21 +1,26 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { Subject, switchMap, takeUntil, takeWhile, timer } from 'rxjs';
+import { Observable, Subject, map, switchMap, takeUntil, takeWhile, timer } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatListModule } from '@angular/material/list';
 import { MatDividerModule } from '@angular/material/divider';
+import { FormsModule } from '@angular/forms';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { SummaryService, SummaryDetail, SummaryVersion } from '../../../core/services/summary.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { LlmModelService, LLMModel } from '../../../core/services/llm-model.service';
+import { GenerationWsService, StageUpdate } from '../../../core/services/generation-ws.service';
 import {
   GenerationPipelineComponent,
   PipelineStageConfig,
@@ -29,6 +34,7 @@ import {
         MatIconModule, MatChipsModule, MatListModule, MatDividerModule,
         MatExpansionModule, MatProgressSpinnerModule, MatSnackBarModule,
         TranslateModule, BaseChartDirective, GenerationPipelineComponent,
+        FormsModule, MatFormFieldModule, MatSelectModule,
     ],
     template: `
     <div class="header-row">
@@ -154,7 +160,14 @@ import {
             </mat-expansion-panel>
           </mat-accordion>
         </mat-card-content>
-        <mat-card-actions *ngIf="isManager">
+        <mat-card-actions *ngIf="isManager" class="regen-actions">
+          <mat-form-field appearance="outline" class="model-select" *ngIf="llmModels.length > 1">
+            <mat-label>{{ 'summaries.aiModel' | translate }}</mat-label>
+            <mat-select [(ngModel)]="regenLlmModelId">
+              <mat-option [value]="null">{{ 'summaries.defaultModel' | translate }}</mat-option>
+              <mat-option *ngFor="let m of llmModels" [value]="m.id">{{ m.display_name }}</mat-option>
+            </mat-select>
+          </mat-form-field>
           <button mat-raised-button color="primary" (click)="regenerate()" [disabled]="regenerating">
             <mat-icon>refresh</mat-icon>
             {{ regenerating ? ('summaries.regenerating' | translate) : ('summaries.regenerate' | translate) }}
@@ -339,6 +352,7 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
     private router: Router,
     private summaryService: SummaryService,
     private authService: AuthService,
+    private genWs: GenerationWsService,
     private snackBar: MatSnackBar,
     private cdr: ChangeDetectorRef,
     public translate: TranslateService,
@@ -378,35 +392,50 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
   }
 
   private pollSummaryGeneration(summaryId: number): void {
-    timer(0, 3000).pipe(
+    // Build polling fallback
+    const pollingFallback$: Observable<StageUpdate | null> = timer(0, 3000).pipe(
       takeUntil(this.destroy$),
       switchMap(() => this.summaryService.pollGenerationStatus(summaryId)),
       takeWhile((s) => s.status === 'pending' || s.status === 'generating', true),
-    ).subscribe({
-      next: (genStatus) => {
-        if (genStatus.stage) {
-          this.pipelineStage = genStatus.stage;
-          this.pipelineStageMeta = genStatus.stage_meta || {};
-          this.cdr.markForCheck();
+      map((s) => {
+        if (s.status === 'completed' || s.status === 'failed') {
+          this._onSummaryGenerationDone(summaryId);
+          return null;
         }
+        return s.stage ? { stage: s.stage, stage_meta: s.stage_meta || {} } : null;
+      }),
+    );
 
-        if (genStatus.status === 'completed' || genStatus.status === 'failed') {
-          this.isGeneratingPipeline = false;
-          this.pipelineStage = undefined;
-          this.pipelineStageMeta = {};
-          this.cdr.markForCheck();
-          // Reload the full summary to get sections + charts
-          this.summaryService.getById(summaryId).pipe(takeUntil(this.destroy$)).subscribe((data) => {
-            this.summary = data;
-            this.buildCharts(data.raw_data);
-            this.cdr.markForCheck();
-          });
+    // Try WS first, falls back to polling automatically
+    this.genWs.connect('summary', summaryId, pollingFallback$).pipe(
+      takeUntil(this.destroy$),
+    ).subscribe({
+      next: (update) => {
+        this.pipelineStage = update.stage;
+        this.pipelineStageMeta = update.stage_meta;
+        this.cdr.markForCheck();
+
+        if (update.stage === 'completed') {
+          this._onSummaryGenerationDone(summaryId);
         }
       },
       error: () => {
         this.isGeneratingPipeline = false;
         this.cdr.markForCheck();
       },
+    });
+  }
+
+  private _onSummaryGenerationDone(summaryId: number): void {
+    this.isGeneratingPipeline = false;
+    this.pipelineStage = undefined;
+    this.pipelineStageMeta = {};
+    this.cdr.markForCheck();
+    // Reload the full summary to get sections + charts
+    this.summaryService.getById(summaryId).pipe(takeUntil(this.destroy$)).subscribe((data) => {
+      this.summary = data;
+      this.buildCharts(data.raw_data);
+      this.cdr.markForCheck();
     });
   }
 

@@ -17,9 +17,12 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsManager, IsManagerOrEngineer
 
-from .models import ReportSummary
+from .models import LLMModel, ReportSummary
 from .serializers import (
     GenerateRequestSerializer,
+    LLMModelSerializer,
+    OrgDefaultModelSerializer,
+    RegenerateRequestSerializer,
     SummaryDetailSerializer,
     SummaryListSerializer,
     SummaryVersionSerializer,
@@ -243,9 +246,15 @@ class SummaryGenerateView(APIView):
             focus_prompt=focus_prompt,
         )
 
+        model_override = None
+        llm_model_id = serializer.validated_data.get("llm_model_id")
+        if llm_model_id:
+            model_override = LLMModel.objects.get(pk=llm_model_id).model_id
+
         generate_summary.delay(
             "on_demand", str(period_start), str(period_end),
             summary_id=summary.id,
+            model_override=model_override,
         )
 
         detail_serializer = SummaryDetailSerializer(summary)
@@ -259,7 +268,7 @@ class SummaryRegenerateView(APIView):
     @extend_schema(
         summary="Regenerate a summary",
         description="Creates a new version of an existing summary. Returns immediately with pending new version.",
-        request=None,
+        request=RegenerateRequestSerializer,
         responses={
             202: SummaryDetailSerializer,
             404: OpenApiResponse(description="Summary not found"),
@@ -268,6 +277,9 @@ class SummaryRegenerateView(APIView):
         tags=["Summaries"],
     )
     def post(self, request, pk):
+        serializer = RegenerateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         org = request.user.organization
         try:
             original = ReportSummary.objects.get(pk=pk, organization=org)
@@ -296,9 +308,15 @@ class SummaryRegenerateView(APIView):
             requested_by=request.user,
         )
 
+        model_override = None
+        llm_model_id = serializer.validated_data.get("llm_model_id")
+        if llm_model_id:
+            model_override = LLMModel.objects.get(pk=llm_model_id).model_id
+
         generate_summary.delay(
             original.period_type, str(original.period_start), str(original.period_end),
             summary_id=summary.id,
+            model_override=model_override,
         )
 
         detail_serializer = SummaryDetailSerializer(summary)
@@ -352,3 +370,67 @@ class SummaryGenerationStatusView(APIView):
             pass
 
         return Response(response_data)
+
+
+class LLMModelListView(ListAPIView):
+    """GET /api/llm-models/ — list active LLM models."""
+
+    serializer_class = LLMModelSerializer
+    permission_classes = [IsManagerOrEngineer]
+    pagination_class = None
+
+    @extend_schema(
+        summary="List available LLM models",
+        description="Returns all active LLM models that can be selected for AI generation.",
+        tags=["LLM Models"],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return LLMModel.objects.filter(is_active=True)
+
+
+class OrgDefaultModelView(APIView):
+    """GET/PATCH /api/llm-models/org-default/ — manage organization's default LLM model."""
+
+    permission_classes = [IsManager]
+
+    @extend_schema(
+        summary="Get organization's default LLM model",
+        responses={200: inline_serializer("OrgDefaultModelResponse", fields={
+            "default_llm_model": LLMModelSerializer(allow_null=True),
+        })},
+        tags=["LLM Models"],
+    )
+    def get(self, request):
+        org = request.user.organization
+        model = org.default_llm_model
+        return Response({
+            "default_llm_model": LLMModelSerializer(model).data if model else None,
+        })
+
+    @extend_schema(
+        summary="Set organization's default LLM model",
+        request=OrgDefaultModelSerializer,
+        responses={200: inline_serializer("OrgDefaultModelPatchResponse", fields={
+            "default_llm_model": LLMModelSerializer(allow_null=True),
+        })},
+        tags=["LLM Models"],
+    )
+    def patch(self, request):
+        serializer = OrgDefaultModelSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        org = request.user.organization
+        model_id = serializer.validated_data["default_llm_model_id"]
+        if model_id is not None:
+            org.default_llm_model = LLMModel.objects.get(pk=model_id, is_active=True)
+        else:
+            org.default_llm_model = None
+        org.save(update_fields=["default_llm_model"])
+
+        model = org.default_llm_model
+        return Response({
+            "default_llm_model": LLMModelSerializer(model).data if model else None,
+        })

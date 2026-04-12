@@ -78,15 +78,35 @@ No actionable items — this template is a fallback. Regenerate the summary once
 Note: This summary was generated from a template because the AI service was unavailable."""
 
 
-def call_llm(system_prompt, user_prompt, temperature=None):
+def resolve_llm_model(organization=None, explicit_model_id=None):
+    """Resolve which LLM model_id string to use.
+
+    Priority: explicit_model_id > org default > system default > settings.LLM_MODEL
+    """
+    if explicit_model_id:
+        return explicit_model_id
+
+    if organization and organization.default_llm_model_id:
+        return organization.default_llm_model.model_id
+
+    from .models import LLMModel
+
+    system_default = LLMModel.objects.filter(is_default=True, is_active=True).first()
+    if system_default:
+        return system_default.model_id
+
+    return settings.LLM_MODEL
+
+
+def call_llm(system_prompt, user_prompt, temperature=None, model=None):
     """Call LLM via LiteLLM. Returns (text, model, prompt_tokens, completion_tokens)."""
     import litellm
 
-    litellm.num_retries = 1
-    litellm.request_timeout = 60
+    litellm.num_retries = 0
+    litellm.request_timeout = 110
 
     kwargs = {
-        "model": settings.LLM_MODEL,
+        "model": model or settings.LLM_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -101,7 +121,7 @@ def call_llm(system_prompt, user_prompt, temperature=None):
 
     response = litellm.completion(**kwargs)
     text = response.choices[0].message.content
-    model = response.model or settings.LLM_MODEL
+    model = response.model or kwargs["model"]
     prompt_tokens = getattr(response.usage, "prompt_tokens", None)
     completion_tokens = getattr(response.usage, "completion_tokens", None)
     return text, model, prompt_tokens, completion_tokens
@@ -572,20 +592,33 @@ def notify_managers_of_summary(summary):
 
 
 def _set_summary_stage(summary_id: int, stage: str, meta: dict | None = None):
-    """Write current pipeline stage + metadata to Redis for the polling endpoint."""
+    """Write current pipeline stage + metadata to Redis and broadcast via Channels."""
+    stage_meta = meta or {}
     try:
         r = Redis.from_url(settings.CELERY_BROKER_URL)
-        payload = {"stage": stage, "stage_meta": meta or {}}
+        payload = {"stage": stage, "stage_meta": stage_meta}
         r.set(f"summary_generate:{summary_id}:stage", json.dumps(payload), ex=300)
     except Exception:
         pass  # best-effort
+    # Best-effort WS broadcast
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"generation_summary_{summary_id}",
+            {"type": "generation_stage", "stage": stage, "stage_meta": stage_meta},
+        )
+    except Exception:
+        pass
 
 
-def generate_summary_for_period(summary_id, prev_metrics=None):
+def generate_summary_for_period(summary_id, prev_metrics=None, model_override=None):
     """Orchestrate summary generation: collect metrics, call LLM, handle fallback."""
     from .models import ReportSummary
 
-    summary = ReportSummary.objects.get(pk=summary_id)
+    summary = ReportSummary.objects.select_related("organization__default_llm_model").get(pk=summary_id)
     summary.status = ReportSummary.Status.GENERATING
     summary.save(update_fields=["status"])
 
@@ -629,13 +662,16 @@ def generate_summary_for_period(summary_id, prev_metrics=None):
 
     temperature = DAILY_TEMPERATURE if summary.period_type == ReportSummary.PeriodType.DAILY else None
 
-    llm_model = getattr(settings, "LLM_MODEL", "default")
+    llm_model = resolve_llm_model(
+        organization=summary.organization,
+        explicit_model_id=model_override,
+    )
     _set_summary_stage(summary_id, "calling_llm", {"model": llm_model})
 
     start_time = time.monotonic()
     try:
         text, model, prompt_tokens, completion_tokens = call_llm(
-            SYSTEM_PROMPT, user_prompt, temperature=temperature,
+            SYSTEM_PROMPT, user_prompt, temperature=temperature, model=llm_model,
         )
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
 

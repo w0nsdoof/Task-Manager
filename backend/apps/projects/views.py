@@ -539,7 +539,19 @@ class EpicViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
 
         from apps.projects.tasks import generate_epic_tasks
 
-        result = generate_epic_tasks.delay(epic.id)
+        model_override = None
+        llm_model_id = request.data.get("llm_model_id")
+        if llm_model_id is not None:
+            from apps.ai_summaries.models import LLMModel
+            try:
+                model_override = LLMModel.objects.get(pk=llm_model_id, is_active=True).model_id
+            except LLMModel.DoesNotExist:
+                return Response(
+                    {"detail": "Selected LLM model is not available."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        result = generate_epic_tasks.delay(epic.id, model_override=model_override)
         return Response({"task_id": result.id}, status=status.HTTP_202_ACCEPTED)
 
     @extend_schema(
