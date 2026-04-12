@@ -153,7 +153,16 @@
     "previewTitle": "Просмотр сгенерированных задач",
     "confirmTasks": "Подтвердить и создать",
     "tasksCreated": "{count} задач успешно создано",
-    "noTasksToConfirm": "Добавьте хотя бы одну задачу для подтверждения"
+    "noTasksToConfirm": "Добавь��е хотя бы одну задачу для подтверждения",
+    "pipeline": {
+      "title": "Конвейер AI-генерации",
+      "collectingContext": "Сбор контекста",
+      "buildingPrompt": "Формирование промпта",
+      "callingLlm": "Вызов AI-модели",
+      "parsingResponse": "Разбор ответа",
+      "validating": "Валидация задач",
+      "ready": "Готово к ��роверке"
+    }
   },
   "clients": {
     "title": "Клиенты",
@@ -241,7 +250,15 @@
     "statusDistribution": "Распределение по статусам",
     "priorityDistribution": "Распределение по приоритетам",
     "engineerWorkload": "Нагрузка инженеров",
-    "clientActivity": "Активность клиентов"
+    "clientActivity": "Активность клиентов",
+    "pipeline": {
+      "title": "Конвейер AI-отчёта",
+      "collectingMetrics": "Сбор метрик",
+      "buildingPrompt": "Формирование промпта",
+      "callingLlm": "Вызов AI-модели",
+      "parsingSections": "Разбор секций",
+      "ready": "Отчёт готов"
+    }
   },
   "admin": {
     "title": "Управление пользователями",

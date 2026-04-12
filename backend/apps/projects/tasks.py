@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from datetime import UTC, datetime
@@ -20,22 +21,56 @@ def _get_redis():
     return Redis.from_url(settings.CELERY_BROKER_URL)
 
 
+def _set_stage(redis_client, epic_id: int, stage: str, meta: dict | None = None):
+    """Write current pipeline stage + metadata to Redis for the polling endpoint."""
+    payload = {"stage": stage, "stage_meta": meta or {}}
+    redis_client.set(
+        f"epic_generate:{epic_id}:stage",
+        json.dumps(payload),
+        ex=300,  # auto-expire after 5 min
+    )
+
+
 @shared_task(soft_time_limit=90, time_limit=120)
 def generate_epic_tasks(epic_id: int) -> dict:
     from apps.projects.models import Epic
 
+    redis_client = _get_redis()
     redis_key = f"epic_generate:{epic_id}"
     try:
+        _set_stage(redis_client, epic_id, "collecting_context")
+
         epic = Epic.objects.select_related(
             "project", "client", "organization",
         ).prefetch_related("tags").get(pk=epic_id)
 
         context = build_generation_context(epic)
 
+        _set_stage(redis_client, epic_id, "collecting_context", {
+            "tasks_found": len(context["existing_tasks"]),
+            "team_size": len(context["team_members"]),
+            "tags_available": len(context["available_tags"]),
+        })
+
+        _set_stage(redis_client, epic_id, "building_prompt")
+
         system_prompt = build_system_prompt(context)
         user_prompt = build_user_prompt(context)
 
+        # Rough token estimate (~4 chars per token)
+        token_estimate = (len(system_prompt) + len(user_prompt)) // 4
+
+        _set_stage(redis_client, epic_id, "building_prompt", {
+            "token_estimate": token_estimate,
+        })
+
         from apps.ai_summaries.services import call_llm
+
+        llm_model = getattr(settings, "LLM_MODEL", "default")
+        _set_stage(redis_client, epic_id, "calling_llm", {
+            "model": llm_model,
+            "started_at": time.time(),
+        })
 
         try:
             start = time.monotonic()
@@ -47,6 +82,13 @@ def generate_epic_tasks(epic_id: int) -> dict:
                 "AI service is temporarily unavailable. Please try again in a few minutes."
             )
 
+        _set_stage(redis_client, epic_id, "parsing_response", {
+            "model": model,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "generation_time_ms": generation_time_ms,
+        })
+
         try:
             raw_tasks = parse_llm_response(text)
         except ValueError:
@@ -54,6 +96,10 @@ def generate_epic_tasks(epic_id: int) -> dict:
             raise RuntimeError(
                 "AI returned an unexpected response format. Please try again."
             )
+
+        _set_stage(redis_client, epic_id, "validating", {
+            "raw_task_count": len(raw_tasks),
+        })
 
         team_ids = {m["id"] for m in context["team_members"]}
         org_tag_ids = {t["id"] for t in context["available_tags"]}
@@ -65,6 +111,12 @@ def generate_epic_tasks(epic_id: int) -> dict:
                 "AI could not generate valid tasks for this epic. "
                 "Try adding more detail to the epic description."
             )
+
+        _set_stage(redis_client, epic_id, "completed", {
+            "valid_tasks": len(validated),
+            "warnings_count": len(warnings),
+            "generation_time_ms": generation_time_ms,
+        })
 
         generation_meta = {
             "model": model,

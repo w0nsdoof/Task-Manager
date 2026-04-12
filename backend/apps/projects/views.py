@@ -565,7 +565,7 @@ class EpicViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["get"], url_path="generate-tasks/status")
     def generate_tasks_status(self, request, pk=None):
-        self.get_object()  # validate epic exists + permissions
+        epic = self.get_object()  # validate epic exists + permissions
 
         task_id = request.query_params.get("task_id")
         if not task_id:
@@ -593,6 +593,19 @@ class EpicViewSet(OrganizationQuerySetMixin, viewsets.ModelViewSet):
             response_data["error"] = (
                 str(result.result) if result.result else "Task generation failed."
             )
+
+        # Attach pipeline stage info from Redis (backwards-compatible)
+        import json as _json
+
+        try:
+            redis_client = Redis.from_url(settings.CELERY_BROKER_URL)
+            raw = redis_client.get(f"epic_generate:{epic.id}:stage")
+            if raw:
+                stage_data = _json.loads(raw)
+                response_data["stage"] = stage_data.get("stage")
+                response_data["stage_meta"] = stage_data.get("stage_meta", {})
+        except Exception:
+            pass  # stage info is best-effort
 
         return Response(response_data)
 

@@ -27,10 +27,12 @@ import { TagService, Tag } from '../../../../core/services/tag.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { EpicDetail, EpicUpdatePayload, ProjectListItem, ParentContext, UserBrief, TagBrief } from '../../../../core/models/hierarchy.models';
 import { AiTaskPreviewDialogComponent, AiTaskPreviewDialogData } from '../ai-task-preview/ai-task-preview-dialog.component';
+import { GenerationPipelineComponent, PipelineStageConfig, StageDetailFormatter } from '../generation-pipeline/generation-pipeline.component';
 import { STATUS_TRANSLATION_KEYS } from '../../../../core/constants/task-status';
 import { CreateEntityDialogComponent } from '../../../tasks/components/create-dialog/create-entity-dialog.component';
 import { ParentBreadcrumbComponent, BreadcrumbItem } from '../../../../shared/components/parent-breadcrumb/parent-breadcrumb.component';
 import { environment } from '../../../../../environments/environment';
+import { PipelineStage } from '../../../../core/models/hierarchy.models';
 
 interface UserOption {
   id: number;
@@ -50,7 +52,7 @@ const ALL_STATUSES = ['created', 'in_progress', 'waiting', 'done', 'archived'];
     MatProgressBarModule, MatProgressSpinnerModule, MatMenuModule, MatSnackBarModule, MatDialogModule,
     MatFormFieldModule, MatInputModule, MatSelectModule,
     MatDatepickerModule, MatNativeDateModule, TranslateModule,
-    ParentBreadcrumbComponent,
+    ParentBreadcrumbComponent, GenerationPipelineComponent,
   ],
   template: `
     <div *ngIf="epic" class="epic-detail">
@@ -263,11 +265,15 @@ const ALL_STATUSES = ['created', 'in_progress', 'waiting', 'done', 'archived'];
                       [disabled]="!epic?.title || !epic?.description">
                 <mat-icon>auto_awesome</mat-icon> {{ 'epics.generateTasks' | translate }}
               </button>
-              <span *ngIf="isGenerating" class="generating-indicator">
-                <mat-spinner diameter="20"></mat-spinner>
-                <span>{{ 'epics.generating' | translate }}</span>
-              </span>
             </div>
+            <app-generation-pipeline
+              *ngIf="isGenerating"
+              [stages]="epicPipelineStages"
+              [titleKey]="'epics.pipeline.title'"
+              [currentStage]="pipelineStage"
+              [stageMeta]="pipelineStageMeta"
+              [detailFormatter]="epicDetailFormatter">
+            </app-generation-pipeline>
             <div *ngIf="tasks.length; else noTasks" class="child-list">
               <div *ngFor="let task of tasks" class="child-item">
                 <div class="child-main">
@@ -386,10 +392,6 @@ const ALL_STATUSES = ['created', 'in_progress', 'waiting', 'done', 'archived'];
     /* Tab content */
     .tab-content { padding: 16px 0; }
     .tab-header { margin-bottom: 12px; display: flex; gap: 12px; align-items: center; }
-    .generating-indicator {
-      display: inline-flex; align-items: center; gap: 8px;
-      font-size: 13px; color: var(--text-secondary, #6b7280);
-    }
     .empty-message { color: #9ca3af; padding: 16px 0; }
 
     /* Child list (tasks) */
@@ -432,6 +434,46 @@ export class EpicDetailComponent implements OnInit, OnDestroy {
   editMode = false;
   saving = false;
   isGenerating = false;
+  pipelineStage: PipelineStage | undefined;
+  pipelineStageMeta: Record<string, any> = {};
+
+  epicPipelineStages: PipelineStageConfig[] = [
+    { key: 'collecting_context', icon: 'inventory_2', labelKey: 'epics.pipeline.collectingContext' },
+    { key: 'building_prompt', icon: 'edit_note', labelKey: 'epics.pipeline.buildingPrompt' },
+    { key: 'calling_llm', icon: 'psychology', labelKey: 'epics.pipeline.callingLlm' },
+    { key: 'parsing_response', icon: 'data_object', labelKey: 'epics.pipeline.parsingResponse' },
+    { key: 'validating', icon: 'verified', labelKey: 'epics.pipeline.validating' },
+    { key: 'completed', icon: 'check_circle', labelKey: 'epics.pipeline.ready' },
+  ];
+
+  epicDetailFormatter: StageDetailFormatter = (key: string, meta: Record<string, any>) => {
+    switch (key) {
+      case 'collecting_context': {
+        const parts: string[] = [];
+        if (meta['tasks_found'] != null) parts.push(`${meta['tasks_found']} existing tasks`);
+        if (meta['team_size'] != null) parts.push(`${meta['team_size']} engineers`);
+        if (meta['tags_available'] != null) parts.push(`${meta['tags_available']} tags`);
+        return parts.join(' \u00b7 ');
+      }
+      case 'building_prompt':
+        return meta['token_estimate'] ? `~${meta['token_estimate']} tokens` : '';
+      case 'calling_llm':
+        return meta['model'] || '';
+      case 'parsing_response':
+        return meta['generation_time_ms'] ? `${(meta['generation_time_ms'] / 1000).toFixed(1)}s` : '';
+      case 'validating':
+        return meta['raw_task_count'] ? `${meta['raw_task_count']} tasks from AI` : '';
+      case 'completed': {
+        const parts: string[] = [];
+        if (meta['valid_tasks'] != null) parts.push(`${meta['valid_tasks']} tasks ready`);
+        if (meta['generation_time_ms'] != null) parts.push(`${(meta['generation_time_ms'] / 1000).toFixed(1)}s total`);
+        return parts.join(' \u00b7 ');
+      }
+      default:
+        return '';
+    }
+  };
+
   editForm!: FormGroup;
 
   // Tasks
@@ -510,6 +552,9 @@ export class EpicDetailComponent implements OnInit, OnDestroy {
     this.isGenerating = true;
     this.cdr.markForCheck();
 
+    this.pipelineStage = 'collecting_context';
+    this.pipelineStageMeta = {};
+
     this.projectService.generateEpicTasks(this.epicId).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res) => {
         this.pollGeneration(res.task_id);
@@ -544,12 +589,23 @@ export class EpicDetailComponent implements OnInit, OnDestroy {
       takeWhile((s) => s.status === 'pending' || s.status === 'processing', true),
     ).subscribe({
       next: (genStatus) => {
+        // Update pipeline stage visualization
+        if (genStatus.stage) {
+          this.pipelineStage = genStatus.stage;
+          this.pipelineStageMeta = genStatus.stage_meta || {};
+          this.cdr.markForCheck();
+        }
+
         if (genStatus.status === 'completed' && genStatus.result) {
           this.isGenerating = false;
+          this.pipelineStage = undefined;
+          this.pipelineStageMeta = {};
           this.cdr.markForCheck();
           this.openPreviewDialog(genStatus.result.tasks, genStatus.result.warnings || []);
         } else if (genStatus.status === 'failed') {
           this.isGenerating = false;
+          this.pipelineStage = undefined;
+          this.pipelineStageMeta = {};
           this.cdr.markForCheck();
           this.snackBar.open(
             genStatus.error || this.translate.instant('epics.generationFailed'),
@@ -560,6 +616,8 @@ export class EpicDetailComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.isGenerating = false;
+        this.pipelineStage = undefined;
+        this.pipelineStageMeta = {};
         this.cdr.markForCheck();
       },
     });

@@ -98,4 +98,15 @@ export class SummaryService {
   regenerate(id: number): Observable<SummaryDetail> {
     return this.http.post<SummaryDetail>(`${this.baseUrl}/${id}/regenerate/`, {});
   }
+
+  pollGenerationStatus(id: number): Observable<SummaryGenerationStatus> {
+    return this.http.get<SummaryGenerationStatus>(`${this.baseUrl}/${id}/generation-status/`);
+  }
+}
+
+export interface SummaryGenerationStatus {
+  id: number;
+  status: string;
+  stage: string | null;
+  stage_meta: Record<string, any>;
 }

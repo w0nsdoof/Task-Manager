@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, switchMap, takeUntil, takeWhile, timer } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -16,6 +16,11 @@ import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { SummaryService, SummaryDetail, SummaryVersion } from '../../../core/services/summary.service';
 import { AuthService } from '../../../core/services/auth.service';
+import {
+  GenerationPipelineComponent,
+  PipelineStageConfig,
+  StageDetailFormatter,
+} from '../../projects/components/generation-pipeline/generation-pipeline.component';
 
 @Component({
     selector: 'app-summary-detail',
@@ -23,7 +28,7 @@ import { AuthService } from '../../../core/services/auth.service';
         CommonModule, RouterModule, MatCardModule, MatButtonModule,
         MatIconModule, MatChipsModule, MatListModule, MatDividerModule,
         MatExpansionModule, MatProgressSpinnerModule, MatSnackBarModule,
-        TranslateModule, BaseChartDirective,
+        TranslateModule, BaseChartDirective, GenerationPipelineComponent,
     ],
     template: `
     <div class="header-row">
@@ -34,6 +39,15 @@ import { AuthService } from '../../../core/services/auth.service';
     <div *ngIf="loading" style="text-align: center; padding: 48px;">
       <mat-spinner diameter="40"></mat-spinner>
     </div>
+
+    <app-generation-pipeline
+      *ngIf="isGeneratingPipeline"
+      [stages]="summaryPipelineStages"
+      [titleKey]="'summaries.pipeline.title'"
+      [currentStage]="pipelineStage"
+      [stageMeta]="pipelineStageMeta"
+      [detailFormatter]="summaryDetailFormatter">
+    </app-generation-pipeline>
 
     <div *ngIf="summary && !loading">
       <!-- Scope badges -->
@@ -248,6 +262,48 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
   isManager = false;
   hasChartData = false;
 
+  // Pipeline state
+  isGeneratingPipeline = false;
+  pipelineStage: string | undefined;
+  pipelineStageMeta: Record<string, any> = {};
+
+  summaryPipelineStages: PipelineStageConfig[] = [
+    { key: 'collecting_metrics', icon: 'analytics', labelKey: 'summaries.pipeline.collectingMetrics' },
+    { key: 'building_prompt', icon: 'edit_note', labelKey: 'summaries.pipeline.buildingPrompt' },
+    { key: 'calling_llm', icon: 'psychology', labelKey: 'summaries.pipeline.callingLlm' },
+    { key: 'parsing_sections', icon: 'segment', labelKey: 'summaries.pipeline.parsingSections' },
+    { key: 'completed', icon: 'check_circle', labelKey: 'summaries.pipeline.ready' },
+  ];
+
+  summaryDetailFormatter: StageDetailFormatter = (key: string, meta: Record<string, any>) => {
+    switch (key) {
+      case 'collecting_metrics': {
+        const parts: string[] = [];
+        if (meta['total_tasks'] != null) parts.push(`${meta['total_tasks']} tasks`);
+        if (meta['created_in_period'] != null) parts.push(`${meta['created_in_period']} created`);
+        if (meta['closed_in_period'] != null) parts.push(`${meta['closed_in_period']} closed`);
+        return parts.join(' \u00b7 ');
+      }
+      case 'building_prompt':
+        return meta['token_estimate'] ? `~${meta['token_estimate']} tokens` : '';
+      case 'calling_llm':
+        return meta['model'] || '';
+      case 'parsing_sections': {
+        if (meta['fallback']) return 'Using fallback template';
+        return meta['generation_time_ms'] ? `${(meta['generation_time_ms'] / 1000).toFixed(1)}s` : '';
+      }
+      case 'completed': {
+        const parts: string[] = [];
+        if (meta['section_count'] != null) parts.push(`${meta['section_count']} sections`);
+        if (meta['method']) parts.push(meta['method']);
+        if (meta['generation_time_ms'] != null) parts.push(`${(meta['generation_time_ms'] / 1000).toFixed(1)}s total`);
+        return parts.join(' \u00b7 ');
+      }
+      default:
+        return '';
+    }
+  };
+
   // Chart data
   statusChartData: ChartData<'doughnut'> | null = null;
   priorityChartData: ChartData<'bar'> | null = null;
@@ -301,13 +357,54 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
     this.summaryService.getById(id).pipe(takeUntil(this.destroy$)).subscribe({
       next: (data) => {
         this.summary = data;
-        this.buildCharts(data.raw_data);
         this.loading = false;
-        this.cdr.markForCheck();
+
+        if (data.status === 'pending' || data.status === 'generating') {
+          this.isGeneratingPipeline = true;
+          this.pipelineStage = 'collecting_metrics';
+          this.cdr.markForCheck();
+          this.pollSummaryGeneration(id);
+        } else {
+          this.buildCharts(data.raw_data);
+          this.cdr.markForCheck();
+        }
         this.loadVersions(id);
       },
       error: () => {
         this.loading = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private pollSummaryGeneration(summaryId: number): void {
+    timer(0, 3000).pipe(
+      takeUntil(this.destroy$),
+      switchMap(() => this.summaryService.pollGenerationStatus(summaryId)),
+      takeWhile((s) => s.status === 'pending' || s.status === 'generating', true),
+    ).subscribe({
+      next: (genStatus) => {
+        if (genStatus.stage) {
+          this.pipelineStage = genStatus.stage;
+          this.pipelineStageMeta = genStatus.stage_meta || {};
+          this.cdr.markForCheck();
+        }
+
+        if (genStatus.status === 'completed' || genStatus.status === 'failed') {
+          this.isGeneratingPipeline = false;
+          this.pipelineStage = undefined;
+          this.pipelineStageMeta = {};
+          this.cdr.markForCheck();
+          // Reload the full summary to get sections + charts
+          this.summaryService.getById(summaryId).pipe(takeUntil(this.destroy$)).subscribe((data) => {
+            this.summary = data;
+            this.buildCharts(data.raw_data);
+            this.cdr.markForCheck();
+          });
+        }
+      },
+      error: () => {
+        this.isGeneratingPipeline = false;
         this.cdr.markForCheck();
       },
     });
@@ -368,11 +465,9 @@ export class SummaryDetailComponent implements OnInit, OnDestroy {
     this.summaryService.regenerate(this.summary.id).pipe(takeUntil(this.destroy$)).subscribe({
       next: (newSummary) => {
         this.regenerating = false;
-        this.snackBar.open(this.translate.instant('summaries.regenerationStarted'), this.translate.instant('common.view'), { duration: 5000 }).onAction().subscribe(() => {
-          this.router.navigate(['/reports/summaries', newSummary.id]);
-        });
         this.cdr.markForCheck();
-        this.loadVersions(this.summary!.id);
+        // Navigate to the new summary to see its pipeline
+        this.router.navigate(['/reports/summaries', newSummary.id]);
       },
       error: () => {
         this.regenerating = false;

@@ -1,3 +1,6 @@
+import json as _json
+
+from django.conf import settings
 from django.db.models import Count, OuterRef, Subquery
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -5,6 +8,8 @@ from drf_spectacular.utils import (
     extend_schema,
     inline_serializer,
 )
+from redis import Redis
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.response import Response
@@ -298,3 +303,52 @@ class SummaryRegenerateView(APIView):
 
         detail_serializer = SummaryDetailSerializer(summary)
         return Response(detail_serializer.data, status=status.HTTP_202_ACCEPTED)
+
+
+class SummaryGenerationStatusView(APIView):
+    """GET /api/summaries/{id}/generation-status/ — poll pipeline stage during generation."""
+    permission_classes = [IsManagerOrEngineer]
+
+    @extend_schema(
+        summary="Poll summary generation status",
+        description=(
+            "Returns the current generation status and pipeline stage for a summary. "
+            "Poll until status is 'completed' or 'failed'."
+        ),
+        responses={
+            200: inline_serializer("SummaryGenerationStatus", fields={
+                "id": drf_serializers.IntegerField(),
+                "status": drf_serializers.CharField(),
+                "stage": drf_serializers.CharField(allow_null=True),
+                "stage_meta": drf_serializers.DictField(allow_null=True),
+            }),
+            404: OpenApiResponse(description="Summary not found"),
+        },
+        tags=["Summaries"],
+    )
+    def get(self, request, pk):
+        org = request.user.organization
+        try:
+            summary = ReportSummary.objects.only("id", "status").get(pk=pk, organization=org)
+        except ReportSummary.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        response_data = {
+            "id": summary.id,
+            "status": summary.status,
+            "stage": None,
+            "stage_meta": {},
+        }
+
+        # Read pipeline stage from Redis (best-effort)
+        try:
+            redis_client = Redis.from_url(settings.CELERY_BROKER_URL)
+            raw = redis_client.get(f"summary_generate:{summary.id}:stage")
+            if raw:
+                stage_data = _json.loads(raw)
+                response_data["stage"] = stage_data.get("stage")
+                response_data["stage_meta"] = stage_data.get("stage_meta", {})
+        except Exception:
+            pass
+
+        return Response(response_data)

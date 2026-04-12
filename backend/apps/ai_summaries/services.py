@@ -1,8 +1,10 @@
 import copy
+import json
 import logging
 import time
 
 from django.conf import settings
+from redis import Redis
 
 from apps.reports.services import get_report_data
 
@@ -80,7 +82,7 @@ def call_llm(system_prompt, user_prompt, temperature=None):
     """Call LLM via LiteLLM. Returns (text, model, prompt_tokens, completion_tokens)."""
     import litellm
 
-    litellm.num_retries = 3
+    litellm.num_retries = 1
     litellm.request_timeout = 60
 
     kwargs = {
@@ -569,6 +571,16 @@ def notify_managers_of_summary(summary):
     logger.info("Notified %d managers about summary id=%s", managers.count(), summary.id)
 
 
+def _set_summary_stage(summary_id: int, stage: str, meta: dict | None = None):
+    """Write current pipeline stage + metadata to Redis for the polling endpoint."""
+    try:
+        r = Redis.from_url(settings.CELERY_BROKER_URL)
+        payload = {"stage": stage, "stage_meta": meta or {}}
+        r.set(f"summary_generate:{summary_id}:stage", json.dumps(payload), ex=300)
+    except Exception:
+        pass  # best-effort
+
+
 def generate_summary_for_period(summary_id, prev_metrics=None):
     """Orchestrate summary generation: collect metrics, call LLM, handle fallback."""
     from .models import ReportSummary
@@ -582,6 +594,8 @@ def generate_summary_for_period(summary_id, prev_metrics=None):
         summary.id, summary.period_type, summary.period_start, summary.period_end,
     )
 
+    _set_summary_stage(summary_id, "collecting_metrics")
+
     metrics_data = collect_metrics(
         summary.period_start, summary.period_end,
         organization=summary.organization,
@@ -591,6 +605,15 @@ def generate_summary_for_period(summary_id, prev_metrics=None):
     summary.raw_data = metrics_data
     summary.save(update_fields=["raw_data"])
 
+    tasks_data = metrics_data.get("tasks", {})
+    _set_summary_stage(summary_id, "collecting_metrics", {
+        "total_tasks": tasks_data.get("total", 0),
+        "created_in_period": tasks_data.get("created_in_period", 0),
+        "closed_in_period": tasks_data.get("closed_in_period", 0),
+    })
+
+    _set_summary_stage(summary_id, "building_prompt")
+
     user_prompt = _build_user_prompt(
         summary.period_type, summary.period_start, summary.period_end,
         metrics_data, prev_metrics, summary=summary,
@@ -598,7 +621,16 @@ def generate_summary_for_period(summary_id, prev_metrics=None):
     summary.prompt_text = user_prompt
     summary.save(update_fields=["prompt_text"])
 
+    token_estimate = (len(SYSTEM_PROMPT) + len(user_prompt)) // 4
+    _set_summary_stage(summary_id, "building_prompt", {
+        "token_estimate": token_estimate,
+        "period_type": summary.period_type,
+    })
+
     temperature = DAILY_TEMPERATURE if summary.period_type == ReportSummary.PeriodType.DAILY else None
+
+    llm_model = getattr(settings, "LLM_MODEL", "default")
+    _set_summary_stage(summary_id, "calling_llm", {"model": llm_model})
 
     start_time = time.monotonic()
     try:
@@ -607,7 +639,21 @@ def generate_summary_for_period(summary_id, prev_metrics=None):
         )
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
 
+        _set_summary_stage(summary_id, "parsing_sections", {
+            "model": model,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "generation_time_ms": elapsed_ms,
+        })
+
         sections = parse_sections(text)
+        section_count = len(sections)
+
+        _set_summary_stage(summary_id, "completed", {
+            "section_count": section_count,
+            "generation_time_ms": elapsed_ms,
+            "method": "ai",
+        })
 
         summary.summary_text = text
         summary.sections = sections
@@ -631,8 +677,17 @@ def generate_summary_for_period(summary_id, prev_metrics=None):
         logger.warning(
             "LLM failed for summary id=%s: %s. Using fallback.", summary.id, e,
         )
+
+        _set_summary_stage(summary_id, "parsing_sections", {"fallback": True})
+
         fallback_text = generate_fallback_summary(summary.period_type, metrics_data)
         sections = parse_sections(fallback_text)
+
+        _set_summary_stage(summary_id, "completed", {
+            "section_count": len(sections),
+            "generation_time_ms": elapsed_ms,
+            "method": "fallback",
+        })
 
         summary.summary_text = fallback_text
         summary.sections = sections

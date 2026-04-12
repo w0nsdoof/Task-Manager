@@ -320,10 +320,9 @@ export class ReportsComponent implements OnInit, OnDestroy {
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result) => {
         this.generating = false;
-        this.snackBar.open(this.translate.instant('reports.summaryStarted'), this.translate.instant('common.view'), { duration: 5000 }).onAction().subscribe(() => {
-          this.router.navigate(['/reports/summaries', result.id]);
-        });
         this.cdr.markForCheck();
+        // Navigate directly to detail page to see pipeline
+        this.router.navigate(['/reports/summaries', result.id]);
       },
       error: () => {
         this.generating = false;
