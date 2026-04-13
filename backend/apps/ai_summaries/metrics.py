@@ -6,7 +6,7 @@ are accurate regardless of which process (web vs Celery worker) did the work.
 
 import logging
 
-from prometheus_client.core import GaugeMetricFamily, REGISTRY
+from prometheus_client.core import REGISTRY, GaugeMetricFamily
 
 logger = logging.getLogger(__name__)
 
