@@ -74,3 +74,4 @@ celerybeat-schedule-wal
 
 # Playwright MCP artifacts
 .playwright-mcp/
+backups/

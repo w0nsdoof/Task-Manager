@@ -27,23 +27,24 @@ A VPS is configured for testing deployment.
 
 | Spec | Value |
 |------|-------|
-| **SSH** | `ssh yandex` |
+| **SSH** | `ssh hetzner` |
 | **vCPU** | 2 |
-| **RAM** | 2 GB |
-| **Storage** | 30 GB SSD |
-| **OS** | Ubuntu 22.04 LTS |
+| **RAM** | 4 GB |
+| **Swap** | 4 GB (`/swapfile`, `vm.swappiness=10`) |
+| **Storage** | 38 GB SSD |
+| **OS** | Ubuntu 24.04 LTS |
 
 ### Quick Connect
 
 ```bash
-ssh yandex
+ssh hetzner
 ```
 
 ### Initial Server Setup
 
 ```bash
 # Connect to server
-ssh yandex
+ssh hetzner
 
 # Update system
 sudo apt update && sudo apt upgrade -y
@@ -55,7 +56,7 @@ sudo usermod -aG docker $USER
 
 # Re-login to apply group changes
 exit
-ssh yandex
+ssh hetzner
 
 # Clone repository
 git clone <your-repo-url> ~/taskmanager

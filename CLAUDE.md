@@ -42,7 +42,7 @@ cd frontend && npm run test:ci # headless tests
 
 ## Deployment
 
-- Script: `deploy.sh` — git-pull based, SSHes to server (`ssh yandex` for manual, `deploy` user for CI)
+- Script: `deploy.sh` — git-pull based, SSHes to server (`ssh hetzner` for manual, `deploy` user for CI)
 - Compose file: `docker-compose.yml` with `name: taskmanager`
 - Remote `.env` is managed separately on the server (NOT synced from local)
 - HTTPS/reverse-proxy is handled by a standalone Caddy instance at `~/reverse-proxy/` on the server (not part of this repo). Domain routing for all services is managed there.
